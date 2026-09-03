@@ -20,12 +20,18 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://raw.githubusercontent.com/VL-2024/Superloto-KG/gh-pages/altyn-khan"
-          curl -fsSL "$BASE/index.html" -o index.html
+
+          : > index.html
+          for i in 00 01 02 03 04 05 06; do
+            curl -fsSL "$BASE/parts/part${i}.txt" >> index.html
+          done
+
           curl -fsSL "$BASE/config.js" -o config.js
           curl -fsSL "$BASE/lms-adapter.js" -o lms-adapter.js
           curl -fsSL "$BASE/iframe-host-example.html" -o iframe-host-example.html
           curl -fsSL "$BASE/INTEGRATION.md" -o INTEGRATION.md
           curl -fsSL "$BASE/README.txt" -o README.txt
+
           mkdir -p assets
           curl -fsSL "$BASE/assets/background.webp" -o assets/background.webp
           for kind in chuko saka khan; do
@@ -45,5 +51,5 @@ jobs:
             echo "No changes"
             exit 0
           fi
-          git commit -m "Import standalone Altyn Khan game package"
+          git commit -m "Build standalone Altyn Khan game"
           git push
