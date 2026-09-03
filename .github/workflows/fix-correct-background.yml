@@ -1,0 +1,45 @@
+name: Fix correct Altyn Khan background
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decode and install correct background
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .tmp-bg/part00.txt .tmp-bg/part01.txt .tmp-bg/part02.txt .tmp-bg/part03.txt .tmp-bg/part04.txt .tmp-bg/part05.txt .tmp-bg/part06.txt | tr -d '\n' | base64 -d > /tmp/background.webp
+          test "$(stat -c%s /tmp/background.webp)" -eq 37220
+          mkdir -p assets
+          cp /tmp/background.webp assets/background.webp
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf .tmp-bg .github/workflows/fix-correct-background.yml
+          git add -A
+          git commit -m "Fix Altyn Khan background asset"
+          git push origin main
+
+      - name: Update GitHub Pages branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git switch gh-pages
+          mkdir -p assets
+          cp /tmp/background.webp assets/background.webp
+          rm -rf .tmp-bg .github/workflows/fix-correct-background.yml
+          git add -A
+          git commit -m "Fix Altyn Khan background asset"
+          git push origin gh-pages
