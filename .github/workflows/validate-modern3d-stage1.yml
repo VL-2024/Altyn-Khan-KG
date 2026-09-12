@@ -1,0 +1,28 @@
+name: Validate Altyn Khan Modern 3D stage 1
+
+on:
+  push:
+    branches: [modern-3d]
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: |
+          node --check src/config.js
+          node --check src/scenario-config.js
+          node --check src/altyn-scenario-controller.js
+          node --check lms-adapter.js
+          node --check src/i18n.js
+          node --check src/game.js
+      - name: Verify stage 1 wiring
+        run: |
+          grep -q "X2_ALTYN_BUILD = '0.1.0'" index.html
+          grep -q "altyn-scenario-controller.js" index.html
+          grep -q "chukoCount: 11" src/config.js
+          grep -q "KHAN_THROW_3" src/scenario-config.js
+          grep -q "KHAN_THROW_2" src/scenario-config.js
+          grep -q "KHAN_THROW_1" src/scenario-config.js
