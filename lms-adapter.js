@@ -230,9 +230,9 @@
     await new Promise(r=>setTimeout(r,120));
     const forced = params.get('scenario');
     const forcedItem = forced != null ? scenarioCfg.get(forced) : null;
-    // DEMO: every new demo ticket gets an independent weighted-random scenario.
-    // ?scenario=... remains an explicit QA override and bypasses randomness.
-    const item = forcedItem || scenarioCfg.randomDemo();
+    // ALTYN KHAN DEMO: preserve the showcase sequence 1→2→1→3→...→9.
+    // ?scenario=... remains an explicit QA override.
+    const item = forcedItem || scenarioCfg.demoAt(mockCounter++);
     const scenario = item.id;
     const multiplier = scenarioCfg.demoMultiplier(scenario);
     const win = Number(denomination) * multiplier;
