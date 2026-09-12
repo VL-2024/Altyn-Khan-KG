@@ -1,4 +1,4 @@
-/* ALTYН ХАН Modern 3D v0.1.0 — authoritative scenario catalogue.
+/* ALTYN KHAN Modern 3D v0.1.0 — authoritative scenario catalogue.
  *
  * Financial result is LMS-authoritative. This catalogue describes only how an
  * already purchased ticket is visually revealed in 1..3 throws.
@@ -17,7 +17,7 @@
       regularMode: 'range',
       regularMin: 1,
       regularMax: 3,
-      regular: 3,            // legacy one-throw fallback only
+      regular: 3,
       khan: false,
       khanThrow: null,
       maxThrows: 3,
@@ -89,7 +89,7 @@
       id: 7,
       key: 'KHAN_THROW_3',
       regularMode: 'visual-before-khan',
-      regular: 0,            // intermediate regular pieces do not affect payout
+      regular: 0,
       khan: true,
       khanThrow: 3,
       maxThrows: 3,
@@ -125,8 +125,6 @@
 
   const ids = Object.freeze([1,2,3,4,5,6,7,8,9]);
   const byKey = Object.freeze(Object.fromEntries(Object.values(scenarios).map(item => [item.key, item])));
-
-  // Preserve the current Altyn Khan DEMO showcase sequence.
   const demoOrder = Object.freeze([1,2,1,3,1,4,1,5,1,6,1,7,1,8,1,9]);
 
   function get(value) {
@@ -160,10 +158,8 @@
     scenarioSetVersion: 'altyn-khan-modern-3d-2026-09-12-v1'
   });
 
-  global.X2_ALTYН_SCENARIOS = scenarios;
+  global.X2_ALTYN_SCENARIOS = scenarios;
   global.X2AltynScenarioConfig = api;
-
-  // Temporary compatibility alias for inherited Chuko v9 game.js.
   global.X2_CHUKO_SCENARIOS = scenarios;
   global.X2ChukoScenarioConfig = api;
 })(window);
