@@ -1,6 +1,6 @@
 window.CHUKO3D_CONFIG = Object.freeze({
-  version: '0.13.21',
-  sourceMechanic: 'CHUKO v20.61',
+  version: '0.1.0',
+  sourceMechanic: 'CHUKO Modern 3D v9 / 0.13.21',
 
   field: {
     radius: 3.35,
@@ -8,10 +8,8 @@ window.CHUKO3D_CONFIG = Object.freeze({
     visualRadius: 3.42
   },
 
-  // Кучка остаётся компактной: управление броском меняет точку контакта,
-  // а не разбрасывает стартовую раскладку по всему полю.
   pile: {
-    chukoCount: 12,
+    chukoCount: 11,
     offsetZ: -0.24,
     spreadX: 0.60,
     spreadZ: 0.44,
@@ -26,7 +24,6 @@ window.CHUKO3D_CONFIG = Object.freeze({
     saka:  { width: 0.58, height: 0.40, depth: 0.80, mass: 0.70 }
   },
 
-
   visual: {
     organicRingsMobile: 8,
     organicRingsDesktop: 11,
@@ -38,11 +35,8 @@ window.CHUKO3D_CONFIG = Object.freeze({
     fieldInnerLift: 0.012
   },
 
-
   physics: {
     gravity: -9.81,
-    // v0.5: ещё меньше сцепления с полем + более тяжёлая САКА.
-    // Базовый Havok-разлёт усилен, а точечный contact boost добавляет энергию в момент удара.
     friction: 0.24,
     restitution: 0.22,
     sakaFriction: 0.20,
@@ -62,17 +56,11 @@ window.CHUKO3D_CONFIG = Object.freeze({
     finalApproachMaxSpeed: 7.4,
     pileReleaseY: 0.58,
     pileReleaseHorizontalError: 0.18,
-
-    // v0.5: дуга задаётся через реальную высоту апекса.
-    // Это делает полёт визуально стабильнее: САКА действительно поднимается
-    // над полем и затем падает сверху точно в выбранную точку.
     arcHeightMin: 1.55,
     arcHeightMax: 2.05,
     sideSpin: 15.4,
     settleMs: 3400,
 
-    // Контактный импульс не задаёт результат сценария — он лишь усиливает
-    // энергию реального удара Havok в ближайшей зоне, как impactBoost в v20.61.
     impactBoost: {
       enabled: true,
       triggerHeight: 0.72,
@@ -85,7 +73,6 @@ window.CHUKO3D_CONFIG = Object.freeze({
       khanFactor: 0.86
     },
 
-    // Аналог v20.61: бросок ограничен сектором, который гарантированно пересекает кучку.
     aimRadius: 0.78,
     contactRadiusFactor: 0.50,
     aimSafetyDeg: 2.0,
@@ -119,7 +106,6 @@ window.CHUKO3D_CONFIG = Object.freeze({
     chukoFile: 'Chuko_4435_Meshy_mobile.glb',
     khanFile: 'Khan_quad_mobile.glb',
     sakaFile: 'Saka_3118_mobile_2K_1K.glb',
-    // Target longest local dimension before the existing gameplay scale is applied.
     chukoTargetMax: 0.53,
     khanTargetMax: 0.54,
     sakaTargetMax: 0.76,
@@ -130,13 +116,10 @@ window.CHUKO3D_CONFIG = Object.freeze({
     denominations: [25, 50, 100],
     defaultDenomination: 25,
     demoTicketStart: 100001,
-    // White chalk ring in field-realistic.webp, normalized to the full image rect.
     whiteRingCx: 0.5000,
     whiteRingCy: 0.4550,
     whiteRingRx: 0.2860,
     whiteRingRy: 0.2020,
-    // Outer edge of the coloured green/blue carpet in field-realistic.webp.
-    // Calibrated directly from the current field image; used as the true OUT boundary.
     greenRingCx: 0.5075,
     greenRingCy: 0.4692,
     greenRingRx: 0.4140,
