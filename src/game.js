@@ -470,13 +470,6 @@
     if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(0.16, clone.roughness * 0.88);
     if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.22);
 
-    // ORDO v0.4.8: render both sides of KHAN surfaces only.
-    // This tests whether the black circular artefact is caused by flipped normals.
-    if (warm) {
-      clone.backFaceCulling = false;
-      if ('twoSidedLighting' in clone) clone.twoSidedLighting = true;
-    }
-
     const emissiveLift = warm
       ? new BABYLON.Color3(0.11, 0.075, 0.028)
       : new BABYLON.Color3(0.035, 0.055, 0.11);
@@ -1211,6 +1204,16 @@
     const role = isKhan ? 'khan' : 'chuko';
     const visual = modelBank.ready ? createGlbVisual(role, name) : null;
     mesh.isVisible = !visual;
+
+    // ORDO v0.4.9: the procedural KHAN proxy carries its old decorative
+    // enamel plate/crest as child meshes. When the GLB visual is active, hiding
+    // only the proxy leaves those children visible above the imported model.
+    // Hide the legacy KHAN decoration as well; physics stays on the proxy.
+    if (role === 'khan' && visual && typeof mesh.getChildMeshes === 'function') {
+      mesh.getChildMeshes(false).forEach(child => {
+        child.isVisible = false;
+      });
+    }
     bodies.push({ mesh, aggregate, role });
     return { mesh, aggregate, visual };
   }

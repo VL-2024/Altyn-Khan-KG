@@ -1,5 +1,5 @@
-ORDO / ALTYN KHAN 3D build: 0.4.8
+ORDO / ALTYN KHAN 3D build: 0.4.9
 KHAN model: current in-game Meshy GLB retained
-KHAN material: backFaceCulling=false; twoSidedLighting=true
-Purpose: diagnose black circular artefact / flipped normals
-Core mechanics/scenarios/physics unchanged from v0.4.7
+Fix: hide legacy procedural KHAN decorative child meshes (enamel plate + crest) whenever GLB visual is active
+KHAN material: v0.4.8 two-sided/backFaceCulling test removed; imported material settings restored
+Physics/scenarios/ballistics/LMS logic unchanged from v0.4.8
