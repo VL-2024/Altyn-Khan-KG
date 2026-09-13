@@ -1,0 +1,583 @@
+name: Implement Altyn Khan multi-throw controller
+
+on:
+  push:
+    branches: [modern-3d]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: modern-3d
+
+      - name: Patch game engine for 1-3 throws per ticket
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('src/game.js')
+          s = p.read_text(encoding='utf-8')
+
+          def between(text, start, end, replacement):
+              a = text.find(start)
+              if a < 0:
+                  raise SystemExit(f'start marker not found: {start[:80]}')
+              b = text.find(end, a)
+              if b < 0:
+                  raise SystemExit(f'end marker not found: {end[:80]}')
+              return text[:a] + replacement + text[b:]
+
+          s = s.replace(
+              "  const ScenarioCfg = window.X2ChukoScenarioConfig;\n",
+              "  const ScenarioCfg = window.X2AltynScenarioConfig || window.X2ChukoScenarioConfig;\n  const AltynScenarioController = window.X2AltynScenarioController;\n"
+          )
+
+          runtime_marker = "  // v0.13.20: dynamic round objects are created once and reused on every reset.\n"
+          if runtime_marker not in s:
+              raise SystemExit('runtime insertion marker not found')
+          runtime_code = r'''  // Ticket-level state for ALTYN KHAN. One purchased ticket can now contain
+  // 1..3 visual throws. Financial result stays immutable and LMS-authoritative.
+  const altynRound = {
+    active: false,
+    plan: null,
+    throwIndex: 0,
+    completedThrows: 0,
+    outIds: new Set(),
+    khanOut: false
+  };
+
+'''
+          s = s.replace(runtime_marker, runtime_code + runtime_marker, 1)
+
+          scenario_block = r'''  function currentAltynThrow() {
+    return altynRound.active && altynRound.plan?.throws
+      ? (altynRound.plan.throws[altynRound.throwIndex] || null)
+      : null;
+  }
+
+  function clearAltynRoundRuntime() {
+    altynRound.active = false;
+    altynRound.plan = null;
+    altynRound.throwIndex = 0;
+    altynRound.completedThrows = 0;
+    altynRound.outIds = new Set();
+    altynRound.khanOut = false;
+  }
+
+  function activateAltynThrow(index = altynRound.throwIndex) {
+    if (!altynRound.active || !altynRound.plan?.throws?.length) return false;
+    const safeIndex = Math.max(0, Math.min(altynRound.plan.throws.length - 1, Number(index) || 0));
+    altynRound.throwIndex = safeIndex;
+    const step = altynRound.plan.throws[safeIndex];
+    if (!step) return false;
+
+    scenarioRuntime.plan = {
+      regular: Number(step.regularOut || 0),
+      khan: Boolean(step.khanOut),
+      key: `${altynRound.plan.scenarioKey}_THROW_${step.index}`,
+      id: altynRound.plan.scenarioId,
+      throwIndex: step.index
+    };
+    scenarioRuntime.targetIds = new Set();
+    scenarioRuntime.targetDirections = new Map();
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanTarget = Boolean(step.khanOut);
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.seed = step.seed;
+    scenarioRuntime.impactAt = 0;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.visualValidation = null;
+    scenarioRuntime.active = true;
+    return true;
+  }
+
+  function prepareScenarioRuntime(ticket) {
+    if (!AltynScenarioController) throw new Error('ALTYN_SCENARIO_CONTROLLER_NOT_LOADED');
+    const fullPlan = AltynScenarioController.buildPlan(ticket?.ticketId, ticket?.scenario);
+    if (!AltynScenarioController.validatePlan(fullPlan)) throw new Error('ALTYN_SCENARIO_PLAN_INVALID');
+
+    altynRound.active = true;
+    altynRound.plan = fullPlan;
+    altynRound.throwIndex = 0;
+    altynRound.completedThrows = 0;
+    altynRound.outIds = new Set();
+    altynRound.khanOut = false;
+    activateAltynThrow(0);
+
+    console.info('[ALTYN] ticket throw plan', {
+      ticketId: ticket?.ticketId,
+      scenario: ticket?.scenario,
+      throws: fullPlan.throws.map(t => ({
+        index: t.index,
+        regularOut: t.regularOut,
+        khanOut: t.khanOut,
+        final: t.final
+      }))
+    });
+  }
+
+  function clearScenarioRuntime() {
+    scenarioRuntime.plan = null;
+    scenarioRuntime.targetIds = new Set();
+    scenarioRuntime.targetDirections = new Map();
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanTarget = false;
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.seed = '';
+    scenarioRuntime.impactAt = 0;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.visualValidation = null;
+    scenarioRuntime.active = false;
+    clearAltynRoundRuntime();
+  }
+
+'''
+          s = between(
+              s,
+              "  function prepareScenarioRuntime(ticket) {",
+              "  function tr(key) {",
+              scenario_block
+          )
+
+          score_block = r'''  function renderScore() {
+    const physical = computePhysicalResult();
+    if (ui.knocked) ui.knocked.textContent = String(physical.out || 0);
+    const scoreWin = (gameState.ticket && gameState.phase === 'settled') ? Number(gameState.ticket.win || 0) : 0;
+    if (ui.scoreWin) ui.scoreWin.textContent = formatMoney(scoreWin);
+    if (ui.khan) {
+      if (physical.khanOut) {
+        const item = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);
+        ui.khan.textContent = `×${Number(item?.demoMultiplier || gameState.ticket?.multiplier || 0)}`;
+      } else if (gameState.phase === 'settled') ui.khan.textContent = tr('stood');
+      else ui.khan.textContent = '—';
+    }
+  }
+
+  function renderPayoutGrid() {
+    if (!ui.payoutGrid || !ScenarioCfg) return;
+    ui.payoutGrid.innerHTML = '';
+    (ScenarioCfg.ids || []).forEach(id => {
+      const item = ScenarioCfg.get(id);
+      if (!item) return;
+      const row = document.createElement('div');
+      row.className = 'payout-item' + (item.khan ? ' payout-khan' : '');
+      const label = document.createElement('span');
+      if (item.khan) label.textContent = `ХАН · ${item.khanThrow}-й бросок`;
+      else if (item.regularMode === 'range') label.textContent = `${item.regularMin}–${item.regularMax} чүкө`;
+      else label.textContent = `${item.regular} чүкө`;
+      const value = document.createElement('strong');
+      value.textContent = `×${item.demoMultiplier}`;
+      row.append(label, value);
+      ui.payoutGrid.appendChild(row);
+    });
+  }
+
+'''
+          s = between(
+              s,
+              "  function renderScore() {",
+              "  // --- Autoplay (ported from CHUKO v20.61) -----------------------------",
+              score_block
+          )
+
+          validate_block = r'''  function validateFinalScenarioVisual(plan=scenarioRuntime.plan) {
+    const actual = visualScenarioResult();
+    let expectedOut = Number(plan?.regular || 0);
+    let expectedKhan = Boolean(plan?.khan);
+
+    if (altynRound.active) {
+      const ids = new Set(altynRound.outIds);
+      scenarioRuntime.outIds.forEach(id => ids.add(id));
+      expectedOut = ids.size;
+      expectedKhan = Boolean(altynRound.khanOut || scenarioRuntime.khanOut || plan?.khan);
+    }
+
+    const valid = !!plan && actual.out === expectedOut && actual.khanOut === expectedKhan &&
+      actual.insideViolations.length === 0 && !actual.khanInsideViolation;
+    const result = { valid, actual, expected: { out: expectedOut, khanOut: expectedKhan } };
+    scenarioRuntime.visualValidation = result;
+    if (!valid && DEBUG_CONTACT) console.warn('[ALTYN 0.2.0] FINAL VISUAL VALIDATION FAILED', result);
+    return result;
+  }
+
+'''
+          s = between(
+              s,
+              "  function validateFinalScenarioVisual(plan=scenarioRuntime.plan) {",
+              "  function deterministicLandingRotation(seed, index, isKhan=false) {",
+              validate_block
+          )
+
+          landing_block = r'''  function prepareScenarioLandingPlan(tp) {
+    if (!scenarioRuntime.active || !scenarioRuntime.plan || !roundPool.initialized) return;
+    if (!altynRound.active || !currentAltynThrow()) return;
+
+    const step = currentAltynThrow();
+    const rng = seededRng(`${step.seed}|landing|${tp.x.toFixed(3)}|${tp.z.toFixed(3)}`);
+    const pivot = updateScatterPivot();
+    const pileX = pivot.x;
+    const pileZ = pivot.z;
+    const scatterAxisAngle = Math.atan2(pileZ - tp.z, pileX - tp.x);
+
+    const activeIds = [...Array(C.pile.chukoCount).keys()].filter(id => !altynRound.outIds.has(id));
+    const targetIds = AltynScenarioController.selectTargetIds(activeIds, step.regularOut, step.seed);
+    scenarioRuntime.targetIds = new Set(targetIds);
+    scenarioRuntime.targetDirections = new Map();
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanTarget = Boolean(step.khanOut);
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.targetsLockedAtImpact = true;
+
+    const flightPlan = [];
+    const usedLandingPoints = [];
+    altynRound.outIds.forEach(id => {
+      const pos = roundPool.chukos[id]?.mesh?.position;
+      if (pos) usedLandingPoints.push(pos.clone());
+    });
+    if (altynRound.khanOut && roundPool.khan?.mesh?.position) usedLandingPoints.push(roundPool.khan.mesh.position.clone());
+
+    const minSep = Number(C.game?.scatterMinSeparationWorld || 0.56);
+    const fanStep = Number(C.game?.scatterOutsideFanStepRad || 0.68);
+    const fanJitter = Number(C.game?.scatterOutsideFanJitterRad || 0.10);
+    const durMin = Number(C.game?.scatterDurationMinMs || 430);
+    const durMax = Number(C.game?.scatterDurationMaxMs || 690);
+    const delayMax = Number(C.game?.scatterDelayMaxMs || 105);
+
+    targetIds.forEach((id, order) => {
+      const item = roundPool.chukos[id];
+      if (!item?.mesh) return;
+      const angle = scatterAxisAngle + outsideFanOffset(order, Math.max(1,targetIds.length), fanStep) + (rng()-0.5)*fanJitter;
+      const y = 0.095 + rng()*0.020;
+      const targetPosition = chooseValidatedOutsideGreenPoint(
+        item, false, angle, y, usedLandingPoints, minSep*1.30, rng
+      );
+      usedLandingPoints.push(targetPosition);
+      const distToImpact = Math.hypot(item.mesh.position.x-tp.x, item.mesh.position.z-tp.z);
+      flightPlan.push({
+        item,index:id,isKhan:false,targeted:true,targetPosition,
+        targetRotation:deterministicLandingRotation(step.seed,id,false),
+        delay:Math.min(delayMax,distToImpact*72 + rng()*24),
+        duration:durMin + (durMax-durMin)*(0.68+rng()*0.28),
+        arc:Number(C.game?.scatterArcOutsideMin||0.26) +
+          (Number(C.game?.scatterArcOutsideMax||0.54)-Number(C.game?.scatterArcOutsideMin||0.26))*rng()
+      });
+      scenarioRuntime.targetDirections.set(id, angle);
+    });
+
+    if (step.khanOut && !altynRound.khanOut && roundPool.khan?.mesh) {
+      const order = targetIds.length;
+      const angle = scatterAxisAngle + outsideFanOffset(order, order+1, fanStep) + (rng()-0.5)*fanJitter;
+      const targetPosition = chooseValidatedOutsideGreenPoint(
+        roundPool.khan, true, angle, 0.14, usedLandingPoints, minSep*1.38, rng
+      );
+      usedLandingPoints.push(targetPosition);
+      flightPlan.push({
+        item:roundPool.khan,index:-1,isKhan:true,targeted:true,targetPosition,
+        targetRotation:deterministicLandingRotation(step.seed,99,true),
+        delay:25+rng()*35,
+        duration:durMax*0.95,
+        arc:Number(C.game?.scatterArcOutsideMax||0.54)*0.92
+      });
+    }
+
+    const preflightProblems = [];
+    flightPlan.forEach(entry => {
+      const ok = targetFullyOutsideGreen(entry.item, entry.targetPosition, entry.isKhan) &&
+        footprintInsideSafeScreen(entry.item, entry.targetPosition, entry.isKhan);
+      if (!ok) preflightProblems.push({ index:entry.index, isKhan:entry.isKhan, position:{x:entry.targetPosition.x,z:entry.targetPosition.z} });
+    });
+    if (preflightProblems.length) console.error('[ALTYN 0.2.0] landing-plan preflight validation failed', preflightProblems);
+
+    scenarioRuntime.flightPlan = flightPlan;
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+  }
+
+'''
+          s = between(
+              s,
+              "  function prepareScenarioLandingPlan(tp) {",
+              "  function startScenarioScatter() {",
+              landing_block
+          )
+
+          physical_block = r'''  function computePhysicalResult() {
+    if (altynRound.active) {
+      const ids = new Set(altynRound.outIds);
+      scenarioRuntime.outIds.forEach(id => ids.add(id));
+      return {
+        out: ids.size,
+        khanOut: Boolean(altynRound.khanOut || scenarioRuntime.khanOut)
+      };
+    }
+
+    if (scenarioRuntime.active && scenarioRuntime.plan && (scenarioRuntime.scatterComplete || gameState.phase === 'settled')) {
+      return { out:Number(scenarioRuntime.plan.regular || 0), khanOut:Boolean(scenarioRuntime.plan.khan) };
+    }
+    if (scenarioRuntime.active && scenarioRuntime.plan) {
+      return { out:scenarioRuntime.outIds.size, khanOut:scenarioRuntime.khanOut };
+    }
+    return {out:0,khanOut:false};
+  }
+
+'''
+          s = between(
+              s,
+              "  function computePhysicalResult() {",
+              "  function freezeItemAtCurrentPosition(item) {",
+              physical_block
+          )
+
+          result_block = r'''  function commitCurrentAltynThrow() {
+    if (!altynRound.active) return;
+    scenarioRuntime.outIds.forEach(id => altynRound.outIds.add(id));
+    if (scenarioRuntime.khanOut) altynRound.khanOut = true;
+    altynRound.completedThrows = Math.max(altynRound.completedThrows, altynRound.throwIndex + 1);
+  }
+
+  function setAltynThrowHint() {
+    if (!ui.hint || !altynRound.active || !altynRound.plan) return;
+    const current = Math.min(altynRound.plan.throws.length, altynRound.throwIndex + 1);
+    const total = altynRound.plan.throws.length;
+    const prefix = gameState.language === 'KG' ? 'Ыргытуу' : gameState.language === 'EN' ? 'Throw' : gameState.language === 'ZH' ? '投掷' : 'Бросок';
+    ui.hint.textContent = `${prefix} ${current}/${total}`;
+  }
+
+  function resetSakaForNextAltynThrow() {
+    window.clearTimeout(resetTimer);
+    resetTimer = 0;
+    pileReleasedForThrow = false;
+    roundPhysicsFrozen = false;
+    thrown = false;
+    throwState = { active:false, targetPoint:null, guideDir:null, power:0, impactBoosted:false, flightTime:0 };
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.targetsLockedAtImpact = false;
+
+    [...roundPool.chukos, roundPool.khan].filter(Boolean).forEach(freezeItemAtCurrentPosition);
+    saka = roundPool.saka?.mesh || saka;
+    sakaAggregate = roundPool.saka?.aggregate || sakaAggregate;
+    if (roundPool.saka) {
+      queueBodyTransformReset(
+        roundPool.saka,
+        (() => { const start = throwStartPoint(); return new BABYLON.Vector3(start.x, start.y, start.z); })(),
+        BABYLON.Quaternion.FromEulerAngles(0.18, -0.45, 0.12),
+        false
+      );
+    }
+
+    resetAimState();
+    hideAimVisuals();
+    if (ui.aimPower) ui.aimPower.hidden = true;
+    const defaultGeo = aimGeometry();
+    const defaultPoint = snapLandingPointToNearestChuko({ x:defaultGeo.center.x, z:defaultGeo.center.z });
+    aimState.power = 0.58;
+    aimState.guideDir = defaultGeo.toCenter;
+    aimState.targetPoint = defaultPoint;
+
+    gameState.phase = 'ready';
+    gameState.ticketReady = true;
+    gameState.busy = false;
+    renderState();
+    setAltynThrowHint();
+    if (autoPlay.active) scheduleAutoThrow();
+  }
+
+  function resolveCurrentAltynThrow() {
+    if (!gameState.ticket || gameState.phase !== 'throwing') return;
+    throwState.active = false;
+    finalizeScenarioVisual();
+    const visualCheck = validateFinalScenarioVisual(scenarioRuntime.plan);
+    commitCurrentAltynThrow();
+
+    const step = currentAltynThrow();
+    LMS?.emit?.('X2_GAME_THROW_COMPLETE', {
+      gameId:LMS_CFG.gameId || 'ALTYN_KHAN',
+      ticketId:gameState.ticket.ticketId,
+      scenario:gameState.ticket.scenario,
+      throwIndex:Number(step?.index || altynRound.throwIndex + 1),
+      throwsTotal:Number(altynRound.plan?.throws?.length || 1),
+      regularOut:Number(step?.regularOut || 0),
+      regularOutTotal:altynRound.outIds.size,
+      khanOut:Boolean(step?.khanOut),
+      visualValid:Boolean(visualCheck.valid),
+      mode:gameState.mode
+    });
+
+    const isFinal = !step || step.final || step.khanOut || altynRound.throwIndex >= altynRound.plan.throws.length - 1;
+    if (isFinal) {
+      showGameResult();
+      setHint('hintResultLocked');
+      return;
+    }
+
+    altynRound.throwIndex += 1;
+    activateAltynThrow(altynRound.throwIndex);
+    resetSakaForNextAltynThrow();
+  }
+
+  function validateAltynTicketResult() {
+    const item = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);
+    const physical = { out:altynRound.outIds.size, khanOut:altynRound.khanOut };
+    if (!item) return { valid:false, physical, reason:'scenario-missing' };
+    let valid = true;
+    if (item.khan) valid = physical.khanOut === true;
+    else if (item.regularMode === 'range') valid = physical.out >= Number(item.regularMin) && physical.out <= Number(item.regularMax) && !physical.khanOut;
+    else valid = physical.out === Number(item.regular || 0) && !physical.khanOut;
+    return { valid, physical, scenario:item.id };
+  }
+
+  function showGameResult() {
+    if (!roundPool.initialized || gameState.resultShown || !gameState.ticket) return;
+    finalizeScenarioVisual();
+    commitCurrentAltynThrow();
+    const finalCheck = validateAltynTicketResult();
+    const scenarioItem = ScenarioCfg?.getOrDefault(gameState.ticket.scenario);
+    gameState.resultShown = true;
+
+    if (gameState.pendingBalance != null && Number.isFinite(gameState.pendingBalance)) {
+      if (gameState.mode === 'demo') {
+        gameState.balance = gameState.balance + Number(gameState.ticket.win || 0);
+        gameState.demoBalance = gameState.balance;
+      } else {
+        gameState.balance = Number(gameState.pendingBalance);
+        gameState.realBalance = gameState.balance;
+      }
+    }
+
+    if (DEBUG_CONTACT && !finalCheck.valid) {
+      console.warn('[ALTYN 0.2.0] ticket visual mismatch', { check:finalCheck, ticket:gameState.ticket, plan:altynRound.plan });
+    }
+
+    gameState.phase = 'settled';
+    gameState.ticketReady = false;
+    gameState.busy = false;
+    showResultToast();
+    saveCompletedTicketLocally(gameState.ticket, gameState.mode);
+    maybeNudgeDemoBadge();
+    renderState();
+    LMS?.emit?.('X2_GAME_ROUND_COMPLETE', {
+      gameId:LMS_CFG.gameId || 'ALTYN_KHAN',
+      ticketId:gameState.ticket.ticketId,
+      scenario:gameState.ticket.scenario,
+      scenarioKey:scenarioItem?.key || gameState.ticket.scenarioKey,
+      win:Number(gameState.ticket.win || 0),
+      balance:gameState.balance,
+      denomination:gameState.denomination,
+      currency:gameState.currency,
+      currencyDisplay:gameState.currencyDisplay,
+      language:gameState.language,
+      mode:gameState.mode,
+      throwsCompleted:altynRound.completedThrows,
+      regularOut:altynRound.outIds.size,
+      khanOut:altynRound.khanOut,
+      visualValid:finalCheck.valid
+    });
+    handleAutoRoundComplete();
+  }
+
+'''
+          s = between(
+              s,
+              "  function showGameResult() {",
+              "  async function refreshBalance() {",
+              result_block
+          )
+
+          old_timer = r'''    resetTimer = window.setTimeout(() => {
+      throwState.active = false;
+      showGameResult();
+      setHint('hintResultLocked');
+    }, C.throw.settleMs);'''
+          new_timer = r'''    resetTimer = window.setTimeout(() => {
+      resolveCurrentAltynThrow();
+    }, C.throw.settleMs);'''
+          if old_timer not in s:
+              raise SystemExit('throw settle timer block not found')
+          s = s.replace(old_timer, new_timer, 1)
+
+          # 11 ordinary pieces + KHAN: ignore the 12th legacy Chuko slot.
+          if "    positions.forEach(([px, pz], i) => {" not in s:
+              raise SystemExit('reset positions loop not found')
+          s = s.replace("    positions.forEach(([px, pz], i) => {", "    positions.slice(0, C.pile.chukoCount).forEach(([px, pz], i) => {", 1)
+
+          # Subsequent throws must never auto-aim at an already knocked-out piece.
+          snap_old = "    roundPool.chukos.forEach((item, index) => {\n      if (!item?.mesh) return;\n"
+          snap_new = "    roundPool.chukos.forEach((item, index) => {\n      if (!item?.mesh) return;\n      if (altynRound.active && altynRound.outIds.has(index)) return;\n"
+          # There are multiple loops with this exact prefix. Replace only the one after snapLandingPointToNearestChuko.
+          snap_pos = s.find("  function snapLandingPointToNearestChuko(point) {")
+          if snap_pos < 0:
+              raise SystemExit('snapLandingPointToNearestChuko not found')
+          loop_pos = s.find(snap_old, snap_pos)
+          if loop_pos < 0:
+              raise SystemExit('snap target loop not found')
+          s = s[:loop_pos] + snap_new + s[loop_pos+len(snap_old):]
+
+          # Button shows which throw of this ticket is next.
+          old_ready = "      case 'ready': label = tr('makeThrow'); break;"
+          new_ready = "      case 'ready': { const step=currentAltynThrow(); label = step ? `${tr('makeThrow')} ${step.index}/${altynRound.plan.throws.length}` : tr('makeThrow'); break; }"
+          if old_ready not in s:
+              raise SystemExit('renderState ready case not found')
+          s = s.replace(old_ready, new_ready, 1)
+
+          # Altyn logging / app id fallback only; LMS-provided IDs still win.
+          s = s.replace("console.info('[CHUKO] scenario set'", "console.info('[ALTYN] scenario set'", 1)
+
+          p.write_text(s, encoding='utf-8')
+
+          # Build/cache-busting bump.
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8').replace('0.1.0', '0.2.0')
+          s = s.replace('ALTYN KHAN v0.2.0 · Babylon.js 9.25 + Havok · base CHUKO v9', 'ALTYN KHAN v0.2.0 · 3-throw controller · Babylon.js 9.25 + Havok')
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('src/config.js')
+          s = p.read_text(encoding='utf-8').replace("version: '0.1.0'", "version: '0.2.0'", 1)
+          p.write_text(s, encoding='utf-8')
+
+          Path('BUILD.txt').write_text(
+              'ALTYN KHAN Modern 3D build: 0.2.0\n'
+              'Base: CHUKO Modern 3D v9 / 0.13.21\n'
+              'Source commit: 8c2077b185832b8913709f716fb09be3456617c6\n'
+              'Stage: multi-throw Round Controller (1..3 throws per LMS ticket)\n'
+              'Scenario source: ALTYN KHAN 1..9\n'
+              'Financial result source: LMS authoritative\n',
+              encoding='utf-8'
+          )
+
+      - name: Syntax check patched game
+        run: |
+          node --check src/game.js
+          node --check src/scenario-config.js
+          node --check src/altyn-scenario-controller.js
+          node --check lms-adapter.js
+          grep -q "resolveCurrentAltynThrow" src/game.js
+          grep -q "positions.slice(0, C.pile.chukoCount)" src/game.js
+          grep -q "ALTYN KHAN Modern 3D build: 0.2.0" BUILD.txt
+
+      - name: Commit multi-throw engine
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/game.js src/config.js index.html BUILD.txt
+          git commit -m "Implement Altyn Khan 1-3 throw round controller"
+          git push origin modern-3d
