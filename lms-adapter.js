@@ -32,6 +32,11 @@
   }
   function targetOrigin() { return cfg.parentOrigin && cfg.parentOrigin !== '*' ? cfg.parentOrigin : '*'; }
   function emit(type, payload = {}) {
+    // UI-only listeners inside the game need the final ticket event too.
+    // Parent postMessage remains unchanged for LMS integration.
+    if (type === 'X2_GAME_ROUND_COMPLETE') {
+      global.dispatchEvent(new CustomEvent(type, { detail: payload }));
+    }
     if (global.parent && global.parent !== global) {
       global.parent.postMessage({source:'X2_CHUKO', type, ...payload}, targetOrigin());
     }
