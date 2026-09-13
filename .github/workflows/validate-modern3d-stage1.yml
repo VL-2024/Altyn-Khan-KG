@@ -24,13 +24,13 @@ jobs:
           node --check src/game.js
       - name: Verify multi-throw, effects, localization, UI and audio wiring
         run: |
-          grep -q "X2_ALTYN_BUILD = '0.4.6'" index.html
+          grep -q "X2_ALTYN_BUILD = '0.4.7'" index.html
           grep -q "altyn-scenario-controller.js" index.html
-          grep -q "khan-effects.js?v=0.4.6" index.html
-          grep -q "win-effects.js?v=0.4.6" index.html
-          grep -q "counter-sync.js?v=0.4.6" index.html
+          grep -q "khan-effects.js?v=0.4.7" index.html
+          grep -q "win-effects.js?v=0.4.7" index.html
+          grep -q "counter-sync.js?v=0.4.7" index.html
           grep -q "data:image/webp;base64" index.html
-          grep -q "version: '0.4.6'" src/config.js
+          grep -q "version: '0.4.7'" src/config.js
           grep -q "RU:'ОРДО'" src/i18n.js
           grep -q "АЛТЫН ХАН 3D" src/i18n.js
           grep -q "khanPopup" src/i18n.js
@@ -39,12 +39,14 @@ jobs:
           grep -q "title.textContent = popupText()" src/khan-effects.js
           grep -q "height:clamp(52px,12.8vw,80px)" styles.css
           grep -q "bottom:calc(0.4% + 45px)" styles.css
-          grep -q "height:42px" styles.css
-          grep -q "bottom:calc(0.4% + 92px)" styles.css
-          grep -q "bottom:calc(0.4% + 97px + 5.8%)" styles.css
-          grep -q "font-size:13px;font-weight:850" styles.css
-          grep -q "score-label{font-size:clamp(10px,2.4vw,14px)" styles.css
-          grep -q "score-value.accent{color:#dbe63c;font-size:clamp(19px,4.7vw,28px)" styles.css
+          grep -q "height:44px" styles.css
+          grep -q "bottom:calc(0.4% + 94px)" styles.css
+          grep -q "bottom:calc(0.4% + 99px + 5.8%)" styles.css
+          grep -q "font-size:clamp(18px,4.0vw,23px)" styles.css
+          grep -q "font-size:15px;font-weight:900" styles.css
+          grep -q "score-label{font-size:clamp(12px,2.9vw,16px)" styles.css
+          grep -q "score-value.accent{color:#dbe63c;font-size:clamp(23px,5.4vw,32px)" styles.css
+          grep -q "font-size:21px;font-weight:1000" styles.css
           grep -q "text-align:left;color:#d4dfef" styles.css
           grep -q "throw: 'assets/sounds/impact-chuko.mp3'" lms-config.js
           grep -q "impact: 'assets/sounds/throw-whoosh.mp3'" lms-config.js
