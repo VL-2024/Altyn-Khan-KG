@@ -26,8 +26,6 @@ jobs:
                   raise SystemExit(f'marker not found: {label}')
               return text.replace(old, new, 1)
 
-          # game.js: fire a dedicated visual event as soon as KHAN actually crosses
-          # the outer field boundary during its deterministic scatter animation.
           p = Path('src/game.js')
           s = p.read_text(encoding='utf-8')
           marker = """      item.mesh.computeWorldMatrix(true);\n"""
@@ -35,8 +33,6 @@ jobs:
           s = replace_once(s, marker, insert, 'scatter animation world matrix')
           p.write_text(s, encoding='utf-8')
 
-          # khan-effects.js: use the immediate KHAN-out event as primary trigger;
-          # keep result-toast observer only as a safety fallback.
           p = Path('src/khan-effects.js')
           s = p.read_text(encoding='utf-8')
           s = s.replace('Modern 3D v0.3.1', 'Modern 3D v0.3.2', 1)
@@ -49,7 +45,6 @@ jobs:
           s = replace_once(s, old, new, 'bind immediate event')
           p.write_text(s, encoding='utf-8')
 
-          # Version/cache busting.
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
           s = s.replace('v0.3.1', 'v0.3.2')
@@ -73,14 +68,6 @@ jobs:
               encoding='utf-8'
           )
 
-          p = Path('.github/workflows/validate-modern3d-stage1.yml')
-          s = p.read_text(encoding='utf-8')
-          s = s.replace("X2_ALTYN_BUILD = '0.3.1'", "X2_ALTYN_BUILD = '0.3.2'")
-          s = s.replace('khan-effects.js?v=0.3.1', 'khan-effects.js?v=0.3.2')
-          if 'X2_ALTYN_KHAN_OUT' not in s:
-              s = s.replace('          grep -q "altynKhanRingBlastMax" src/khan-effects.js\n', '          grep -q "altynKhanRingBlastMax" src/khan-effects.js\n          grep -q "X2_ALTYN_KHAN_OUT" src/game.js\n          grep -q "X2_ALTYN_KHAN_OUT" src/khan-effects.js\n')
-          p.write_text(s, encoding='utf-8')
-
       - name: Validate patched JavaScript
         run: |
           node --check src/game.js
@@ -94,7 +81,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/game.js src/khan-effects.js src/config.js index.html BUILD.txt .github/workflows/validate-modern3d-stage1.yml
+          git add src/game.js src/khan-effects.js src/config.js index.html BUILD.txt
           git commit -m "Start KHAN effect immediately on field exit v0.3.2"
           git push origin modern-3d
 
