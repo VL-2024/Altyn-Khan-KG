@@ -1,52 +1,10 @@
-name: Apply v0.4.7
+name: v0.4.7 helper (disabled)
+
 on:
-  push:
-    branches:
-      - modern-3d
-permissions:
-  contents: write
+  workflow_dispatch:
+
 jobs:
-  apply:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Apply patch
-        run: python tools/apply_v047.py
-      - name: Verify
-        run: |
-          node --check src/config.js
-          grep -q "X2_ALTYN_BUILD = '0.4.7'" index.html
-          grep -q "version: '0.4.7'" src/config.js
-          grep -q "font-size:clamp(18px,4.0vw,23px)" styles.css
-          grep -q "font-size:clamp(23px,5.4vw,32px)" styles.css
-          grep -q "font-size:21px;font-weight:1000" styles.css
-          grep -q "bottom:calc(0.4% + 94px)" styles.css
-      - name: Commit source
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html styles.css src/config.js BUILD.txt
-          git commit -m "ORDO v0.4.7 accessibility typography"
-          git push origin modern-3d
-      - name: Deploy preview
-        run: |
-          git worktree add /tmp/gh origin/gh-pages
-          rm -rf /tmp/gh/modern-3d
-          mkdir -p /tmp/gh/modern-3d
-          rsync -a --exclude='.git' --exclude='.github' ./ /tmp/gh/modern-3d/
-          cd /tmp/gh
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add modern-3d
-          git commit -m "Deploy ORDO v0.4.7"
-          git push origin HEAD:gh-pages
-      - name: Build archive
-        run: zip -qr /tmp/ordo-altyn-khan-3d-v0.4.7.zip . -x '.git/*' '.github/*' 'tools/apply_v047.py'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ordo-altyn-khan-3d-v0.4.7
-          path: /tmp/ordo-altyn-khan-3d-v0.4.7.zip
-          retention-days: 30
+      - run: echo "v0.4.7 helper is disabled"
