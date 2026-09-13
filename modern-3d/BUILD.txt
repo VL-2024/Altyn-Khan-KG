@@ -1,5 +1,5 @@
-ORDO / ALTYN KHAN 3D build: 0.4.5
-UI: larger REAL/DEMO/Info/audio controls, larger hint and ticket text, ticket moved next to controls
-Logo: 2x
-Audio: SAKA flight and chuko impact assignments swapped
-Core mechanics unchanged
+ORDO / ALTYN KHAN 3D build: 0.4.6
+UI: hint has fixed two-line-safe zone with 5px gaps above and below
+Info menu/modal typography enlarged
+Score labels and values enlarged and normalized across all three cards
+Core mechanics/audio/effects unchanged from v0.4.5
