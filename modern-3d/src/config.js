@@ -1,43 +1,170 @@
 window.CHUKO3D_CONFIG = Object.freeze({
-  version: '0.3.0',
+  version: '0.3.2',
   sourceMechanic: 'CHUKO Modern 3D v9 / 0.13.21',
 
-  field: { radius: 3.35, thickness: 0.18, visualRadius: 3.42 },
-  pile: { chukoCount: 11, offsetZ: -0.24, spreadX: 0.60, spreadZ: 0.44, positionJitter: 0.06, angleJitter: 0.42, stackLift: 0.13 },
+  field: {
+    radius: 3.35,
+    thickness: 0.18,
+    visualRadius: 3.42
+  },
+
+  pile: {
+    chukoCount: 11,
+    offsetZ: -0.24,
+    spreadX: 0.60,
+    spreadZ: 0.44,
+    positionJitter: 0.06,
+    angleJitter: 0.42,
+    stackLift: 0.13
+  },
+
   pieces: {
     chuko: { width: 0.39, height: 0.26, depth: 0.60, mass: 0.085 },
     khan:  { width: 0.43, height: 0.29, depth: 0.66, mass: 0.12 },
     saka:  { width: 0.58, height: 0.40, depth: 0.80, mass: 0.70 }
   },
-  visual: { organicRingsMobile: 8, organicRingsDesktop: 11, organicSegmentsMobile: 14, organicSegmentsDesktop: 18, toneExposure: 1.08, toneContrast: 1.10, fieldInnerRadius: 3.14, fieldInnerLift: 0.012 },
-  physics: { gravity: -9.81, friction: 0.24, restitution: 0.22, sakaFriction: 0.20, sakaRestitution: 0.26, fieldFriction: 0.52, fieldRestitution: 0.08, groundFriction: 0.72, groundRestitution: 0.05 },
+
+  visual: {
+    organicRingsMobile: 8,
+    organicRingsDesktop: 11,
+    organicSegmentsMobile: 14,
+    organicSegmentsDesktop: 18,
+    toneExposure: 1.08,
+    toneContrast: 1.10,
+    fieldInnerRadius: 3.14,
+    fieldInnerLift: 0.012
+  },
+
+  physics: {
+    gravity: -9.81,
+    friction: 0.24,
+    restitution: 0.22,
+    sakaFriction: 0.20,
+    sakaRestitution: 0.26,
+    fieldFriction: 0.52,
+    fieldRestitution: 0.08,
+    groundFriction: 0.72,
+    groundRestitution: 0.05
+  },
+
   throw: {
-    start: { x: 0.72, y: 0.70, z: 2.85 }, targetY: 0.30, contactAimY: 0.34,
-    finalApproachStartY: 0.98, finalApproachMinTime: 0.035, finalApproachMaxSpeed: 7.4,
-    pileReleaseY: 0.58, pileReleaseHorizontalError: 0.18, arcHeightMin: 1.55, arcHeightMax: 2.05,
-    sideSpin: 15.4, settleMs: 3400,
-    impactBoost: { enabled: true, triggerHeight: 0.72, triggerRadius: 0.56, affectRadius: 0.90, radialSpeed: 1.88, forwardSpeed: 0.46, liftSpeed: 0.38, randomSpeed: 0.14, khanFactor: 0.86 },
-    aimRadius: 0.78, contactRadiusFactor: 0.50, aimSafetyDeg: 2.0, landingPowerMin: 0.10, landingPowerMax: 0.82,
-    landingPowerExponent: 0.92, deviationMaxDeg: 4.5, manualDeviationMaxDeg: 0.0, aimPointRadiusFactor: 0.92,
-    aimHorizontalSensitivity: 1.06, aimDepthSensitivity: 1.00, maxPullPxMobile: 118, maxPullPxDesktop: 132,
-    sakaPullWorld: 0.62, tapThresholdPx: 10, sakaTouchRadiusMobile: 108, sakaTouchRadiusDesktop: 84
+    start: { x: 0.72, y: 0.70, z: 2.85 },
+    targetY: 0.30,
+    contactAimY: 0.34,
+    finalApproachStartY: 0.98,
+    finalApproachMinTime: 0.035,
+    finalApproachMaxSpeed: 7.4,
+    pileReleaseY: 0.58,
+    pileReleaseHorizontalError: 0.18,
+    arcHeightMin: 1.55,
+    arcHeightMax: 2.05,
+    sideSpin: 15.4,
+    settleMs: 3400,
+
+    impactBoost: {
+      enabled: true,
+      triggerHeight: 0.72,
+      triggerRadius: 0.56,
+      affectRadius: 0.90,
+      radialSpeed: 1.88,
+      forwardSpeed: 0.46,
+      liftSpeed: 0.38,
+      randomSpeed: 0.14,
+      khanFactor: 0.86
+    },
+
+    aimRadius: 0.78,
+    contactRadiusFactor: 0.50,
+    aimSafetyDeg: 2.0,
+    landingPowerMin: 0.10,
+    landingPowerMax: 0.82,
+    landingPowerExponent: 0.92,
+    deviationMaxDeg: 4.5,
+    manualDeviationMaxDeg: 0.0,
+    aimPointRadiusFactor: 0.92,
+    aimHorizontalSensitivity: 1.06,
+    aimDepthSensitivity: 1.00,
+    maxPullPxMobile: 118,
+    maxPullPxDesktop: 132,
+    sakaPullWorld: 0.62,
+    tapThresholdPx: 10,
+    sakaTouchRadiusMobile: 108,
+    sakaTouchRadiusDesktop: 84
   },
-  camera: { alpha: Math.PI / 2, betaMobile: 1.00, betaDesktop: 0.96, radiusMobile: 8.45, radiusDesktop: 8.00, target: { x: 0, y: 0.16, z: 0.04 } },
-  glb: { rootUrl: 'assets/models/', chukoFile: 'Chuko_4435_Meshy_mobile.glb', khanFile: 'Khan_quad_mobile.glb', sakaFile: 'Saka_3118_mobile_2K_1K.glb', chukoTargetMax: 0.53, khanTargetMax: 0.54, sakaTargetMax: 0.76, sakaYaw: Math.PI },
+
+  camera: {
+    alpha: Math.PI / 2,
+    betaMobile: 1.00,
+    betaDesktop: 0.96,
+    radiusMobile: 8.45,
+    radiusDesktop: 8.00,
+    target: { x: 0, y: 0.16, z: 0.04 }
+  },
+
+  glb: {
+    rootUrl: 'assets/models/',
+    chukoFile: 'Chuko_4435_Meshy_mobile.glb',
+    khanFile: 'Khan_quad_mobile.glb',
+    sakaFile: 'Saka_3118_mobile_2K_1K.glb',
+    chukoTargetMax: 0.53,
+    khanTargetMax: 0.54,
+    sakaTargetMax: 0.76,
+    sakaYaw: Math.PI
+  },
+
   game: {
-    denominations: [25, 50, 100], defaultDenomination: 25, demoTicketStart: 100001,
-    whiteRingCx: 0.5000, whiteRingCy: 0.4550, whiteRingRx: 0.2860, whiteRingRy: 0.2020,
-    greenRingCx: 0.5075, greenRingCy: 0.4692, greenRingRx: 0.4140, greenRingRy: 0.2945,
-    greenOutsideMinMetric: 1.045, greenOutsideMaxMetric: 1.24, whiteInsideMaxFootprintMetric: 1.10,
-    landingScreenMarginX: 0.055, landingScreenMarginTop: 0.065, landingScreenMarginBottom: 0.120,
-    deterministicScatter: true, betweenThrowPauseMs: 320, sakaReturnDurationMs: 420, nextThrowPulseMs: 850,
-    scatterInsideMetricMin: 0.38, scatterInsideMetricMax: 0.68, scatterInsideEdgeMetricMin: 0.70, scatterInsideEdgeMetricMax: 0.80,
-    scatterOutsideMetricMin: 1.65, scatterOutsideMetricMax: 1.95, scatterMinSeparationWorld: 0.78,
-    scatterOutsideFanStepRad: 0.62, scatterOutsideFanJitterRad: 0.10, scatterDurationMinMs: 430,
-    scatterDurationMaxMs: 690, scatterDelayMaxMs: 105, scatterArcInsideMin: 0.12, scatterArcInsideMax: 0.30,
-    scatterArcOutsideMin: 0.26, scatterArcOutsideMax: 0.54, sakaContactSnapEnabled: true, sakaContactSnapMaxDistance: 1.20,
-    sakaDeterministicContactTriggerY: 0.43, sakaDeterministicContactRadius: 0.22, sakaAimSnapLive: true,
-    sakaContainSoftRadius: 2.02, sakaContainHardRadius: 2.14, sakaContainClampRadius: 1.98, sakaContainMinY: 0.12
+    denominations: [25, 50, 100],
+    defaultDenomination: 25,
+    demoTicketStart: 100001,
+    whiteRingCx: 0.5000,
+    whiteRingCy: 0.4550,
+    whiteRingRx: 0.2860,
+    whiteRingRy: 0.2020,
+    greenRingCx: 0.5075,
+    greenRingCy: 0.4692,
+    greenRingRx: 0.4140,
+    greenRingRy: 0.2945,
+    greenOutsideMinMetric: 1.045,
+    greenOutsideMaxMetric: 1.24,
+    whiteInsideMaxFootprintMetric: 1.10,
+    landingScreenMarginX: 0.055,
+    landingScreenMarginTop: 0.065,
+    landingScreenMarginBottom: 0.120,
+    deterministicScatter: true,
+    betweenThrowPauseMs: 320,
+    sakaReturnDurationMs: 420,
+    nextThrowPulseMs: 850,
+    scatterInsideMetricMin: 0.38,
+    scatterInsideMetricMax: 0.68,
+    scatterInsideEdgeMetricMin: 0.70,
+    scatterInsideEdgeMetricMax: 0.80,
+    scatterOutsideMetricMin: 1.65,
+    scatterOutsideMetricMax: 1.95,
+    scatterMinSeparationWorld: 0.78,
+    scatterOutsideFanStepRad: 0.62,
+    scatterOutsideFanJitterRad: 0.10,
+    scatterDurationMinMs: 430,
+    scatterDurationMaxMs: 690,
+    scatterDelayMaxMs: 105,
+    scatterArcInsideMin: 0.12,
+    scatterArcInsideMax: 0.30,
+    scatterArcOutsideMin: 0.26,
+    scatterArcOutsideMax: 0.54,
+    sakaContactSnapEnabled: true,
+    sakaContactSnapMaxDistance: 1.20,
+    sakaDeterministicContactTriggerY: 0.43,
+    sakaDeterministicContactRadius: 0.22,
+    sakaAimSnapLive: true,
+    sakaContainSoftRadius: 2.02,
+    sakaContainHardRadius: 2.14,
+    sakaContainClampRadius: 1.98,
+    sakaContainMinY: 0.12
   },
-  mobile: { maxDevicePixelRatio: 1.45, lowFpsThreshold: 47, lowFpsSeconds: 2.2, fallbackDevicePixelRatio: 1.0 }
+
+  mobile: {
+    maxDevicePixelRatio: 1.45,
+    lowFpsThreshold: 47,
+    lowFpsSeconds: 2.2,
+    fallbackDevicePixelRatio: 1.0
+  }
 });

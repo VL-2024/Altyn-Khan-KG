@@ -2662,6 +2662,21 @@
       if (!item.mesh.rotationQuaternion) item.mesh.rotationQuaternion=BABYLON.Quaternion.Identity();
       BABYLON.Quaternion.SlerpToRef(entry.startRotation,entry.targetRotation,ease,item.mesh.rotationQuaternion);
       item.mesh.computeWorldMatrix(true);
+
+      if (entry.isKhan && entry.targeted && !entry.khanFxTriggered) {
+        const metric = greenRingMetricForWorld(item.mesh.position);
+        if ((metric != null && Number.isFinite(metric) && metric >= 1.02) || t >= 0.82) {
+          entry.khanFxTriggered = true;
+          const scenarioItem = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);
+          window.dispatchEvent(new CustomEvent('X2_ALTYN_KHAN_OUT', {
+            detail: {
+              ticketId: String(gameState.ticket?.ticketId || ''),
+              scenario: Number(gameState.ticket?.scenario || 0),
+              multiplier: Number(scenarioItem?.demoMultiplier || gameState.ticket?.multiplier || 0)
+            }
+          }));
+        }
+      }
     });
 
     if (!allDone) return;
