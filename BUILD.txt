@@ -1,9 +1,8 @@
-ALTYN KHAN Modern 3D build: 0.4.3
+ALTYN KHAN Modern 3D build: 0.4.4
 Base: CHUKO Modern 3D v9 / 0.13.21
-Stage: immediate win effects + immediate score counters
+Stage: localized KHAN popup + new X2 LOTO logo
 Core mechanics: v0.3.2 stable flow retained
-Ordinary wins: effect and counters update on final boundary crossing
-KHAN wins: effect and counters update on KHAN boundary crossing
-Visual tiers: x0.5 / x1 / x3 / x4 / x5
-KHAN: separate gold x10 / x15 / x20 finale retained
+Counters/effects: v0.4.3 immediate synchronization retained
+KHAN popup: RU ХАН! / EN WOW! / KG ХАН! / ZH 哇！
+Logo: user-provided X2 LOTO v2 artwork embedded in header
 Financial result source: LMS authoritative
