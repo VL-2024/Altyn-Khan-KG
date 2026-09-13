@@ -1,0 +1,116 @@
+name: Patch KHAN effect timing v0.3.2
+
+on:
+  push:
+    branches: [modern-3d]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: modern-3d
+
+      - name: Apply immediate KHAN trigger
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'marker not found: {label}')
+              return text.replace(old, new, 1)
+
+          # game.js: fire a dedicated visual event as soon as KHAN actually crosses
+          # the outer field boundary during its deterministic scatter animation.
+          p = Path('src/game.js')
+          s = p.read_text(encoding='utf-8')
+          marker = """      item.mesh.computeWorldMatrix(true);\n"""
+          insert = """      item.mesh.computeWorldMatrix(true);\n\n      if (entry.isKhan && entry.targeted && !entry.khanFxTriggered) {\n        const metric = greenRingMetricForWorld(item.mesh.position);\n        if ((metric != null && Number.isFinite(metric) && metric >= 1.02) || t >= 0.82) {\n          entry.khanFxTriggered = true;\n          const scenarioItem = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);\n          window.dispatchEvent(new CustomEvent('X2_ALTYN_KHAN_OUT', {\n            detail: {\n              ticketId: String(gameState.ticket?.ticketId || ''),\n              scenario: Number(gameState.ticket?.scenario || 0),\n              multiplier: Number(scenarioItem?.demoMultiplier || gameState.ticket?.multiplier || 0)\n            }\n          }));\n        }\n      }\n"""
+          s = replace_once(s, marker, insert, 'scatter animation world matrix')
+          p.write_text(s, encoding='utf-8')
+
+          # khan-effects.js: use the immediate KHAN-out event as primary trigger;
+          # keep result-toast observer only as a safety fallback.
+          p = Path('src/khan-effects.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('Modern 3D v0.3.1', 'Modern 3D v0.3.2', 1)
+          old = """  function showMoment() {\n    const layer = document.getElementById('celebration-layer');\n    if (!layer) return;\n\n    const ticket = ticketKey();\n    if (ticket && ticket !== '№ —' && ticket === lastTicket) return;\n    if (ticket && ticket !== '№ —') lastTicket = ticket;\n\n    clearMoment();\n    const multiplier = multiplierText();\n    const numeric = Number(multiplier.replace(/[^0-9.]/g, '')) || 10;\n"""
+          new = """  function showMoment(detail = null) {\n    const layer = document.getElementById('celebration-layer');\n    if (!layer) return;\n\n    const eventTicket = detail?.ticketId ? `№ ${detail.ticketId}` : '';\n    const ticket = eventTicket || ticketKey();\n    if (ticket && ticket !== '№ —' && ticket === lastTicket) return;\n    if (ticket && ticket !== '№ —') lastTicket = ticket;\n\n    clearMoment();\n    const eventMultiplier = Number(detail?.multiplier || 0);\n    const multiplier = [10,15,20].includes(eventMultiplier) ? `×${eventMultiplier}` : multiplierText();\n    const numeric = Number(multiplier.replace(/[^0-9.]/g, '')) || 10;\n"""
+          s = replace_once(s, old, new, 'showMoment signature')
+
+          old = """    const check = () => {\n      if (!toast.classList.contains('show') || !toast.classList.contains('khan-win')) return;\n      requestAnimationFrame(() => requestAnimationFrame(showMoment));\n    };\n\n    new MutationObserver(check).observe(toast, {\n"""
+          new = """    window.addEventListener('X2_ALTYN_KHAN_OUT', event => {\n      showMoment(event.detail || null);\n    });\n\n    const check = () => {\n      if (!toast.classList.contains('show') || !toast.classList.contains('khan-win')) return;\n      requestAnimationFrame(() => requestAnimationFrame(() => showMoment()));\n    };\n\n    new MutationObserver(check).observe(toast, {\n"""
+          s = replace_once(s, old, new, 'bind immediate event')
+          p.write_text(s, encoding='utf-8')
+
+          # Version/cache busting.
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('v0.3.1', 'v0.3.2')
+          s = s.replace("'0.3.1'", "'0.3.2'")
+          s = s.replace('?v=0.3.1', '?v=0.3.2')
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('src/config.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("version: '0.3.0'", "version: '0.3.2'", 1)
+          p.write_text(s, encoding='utf-8')
+
+          Path('BUILD.txt').write_text(
+              'ALTYN KHAN Modern 3D build: 0.3.2\n'
+              'Base: CHUKO Modern 3D v9 / 0.13.21\n'
+              'Stage: immediate KHAN finale timing\n'
+              'Core mechanics: v0.2.1 multi-throw flow retained\n'
+              'KHAN result: throw 3 = x10, throw 2 = x15, throw 1 = x20\n'
+              'Effect: starts when KHAN crosses the outer field boundary, without result-settle delay\n'
+              'Financial result source: LMS authoritative\n',
+              encoding='utf-8'
+          )
+
+          p = Path('.github/workflows/validate-modern3d-stage1.yml')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("X2_ALTYN_BUILD = '0.3.1'", "X2_ALTYN_BUILD = '0.3.2'")
+          s = s.replace('khan-effects.js?v=0.3.1', 'khan-effects.js?v=0.3.2')
+          if 'X2_ALTYN_KHAN_OUT' not in s:
+              s = s.replace('          grep -q "altynKhanRingBlastMax" src/khan-effects.js\n', '          grep -q "altynKhanRingBlastMax" src/khan-effects.js\n          grep -q "X2_ALTYN_KHAN_OUT" src/game.js\n          grep -q "X2_ALTYN_KHAN_OUT" src/khan-effects.js\n')
+          p.write_text(s, encoding='utf-8')
+
+      - name: Validate patched JavaScript
+        run: |
+          node --check src/game.js
+          node --check src/khan-effects.js
+          node --check src/config.js
+          grep -q "X2_ALTYN_KHAN_OUT" src/game.js
+          grep -q "X2_ALTYN_KHAN_OUT" src/khan-effects.js
+          grep -q "X2_ALTYN_BUILD = '0.3.2'" index.html
+
+      - name: Commit modern-3d v0.3.2
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/game.js src/khan-effects.js src/config.js index.html BUILD.txt .github/workflows/validate-modern3d-stage1.yml
+          git commit -m "Start KHAN effect immediately on field exit v0.3.2"
+          git push origin modern-3d
+
+      - name: Publish isolated Modern 3D preview
+        run: |
+          mkdir -p /tmp/modern3d
+          cp index.html styles.css lms-config.js lms-adapter.js /tmp/modern3d/
+          cp -r src assets /tmp/modern3d/
+          git fetch origin gh-pages
+          git worktree add /tmp/ghpages origin/gh-pages
+          rm -rf /tmp/ghpages/modern-3d
+          mkdir -p /tmp/ghpages/modern-3d
+          cp -r /tmp/modern3d/. /tmp/ghpages/modern-3d/
+          cd /tmp/ghpages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modern-3d
+          git commit -m "Publish Altyn Khan Modern 3D v0.3.2"
+          git push origin HEAD:gh-pages
