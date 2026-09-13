@@ -470,6 +470,13 @@
     if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(0.16, clone.roughness * 0.88);
     if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.22);
 
+    // ORDO v0.4.8: render both sides of KHAN surfaces only.
+    // This tests whether the black circular artefact is caused by flipped normals.
+    if (warm) {
+      clone.backFaceCulling = false;
+      if ('twoSidedLighting' in clone) clone.twoSidedLighting = true;
+    }
+
     const emissiveLift = warm
       ? new BABYLON.Color3(0.11, 0.075, 0.028)
       : new BABYLON.Color3(0.035, 0.055, 0.11);

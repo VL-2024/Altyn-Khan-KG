@@ -1,4 +1,5 @@
-ORDO / ALTYN KHAN 3D build: 0.4.7
-Accessibility UI: larger denomination, info dialogs, score cards and hint close control
-Spacing: fixed 5px clearance above and below hint zone, including two-line hints
-Core mechanics/audio/scenarios unchanged from v0.4.6
+ORDO / ALTYN KHAN 3D build: 0.4.8
+KHAN model: current in-game Meshy GLB retained
+KHAN material: backFaceCulling=false; twoSidedLighting=true
+Purpose: diagnose black circular artefact / flipped normals
+Core mechanics/scenarios/physics unchanged from v0.4.7
