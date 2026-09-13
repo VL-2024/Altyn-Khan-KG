@@ -40,8 +40,8 @@ jobs:
           grep -q "altynKhanRingBlastMax" src/khan-effects.js
           grep -q "X2_ALTYN_KHAN_OUT" src/game.js
           grep -q "X2_ALTYN_KHAN_OUT" src/khan-effects.js
-          grep -q "'0.5':" src/win-effects.js
-          grep -q "'5':" src/win-effects.js
+          grep -q "x05" src/win-effects.js
+          grep -q "x5" src/win-effects.js
       - name: Scenario planner tests
         run: |
           node <<'NODE'
