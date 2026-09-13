@@ -1,0 +1,15 @@
+  function applyCurrentAltynThrowState() {
+    if (!altynRound.active) return;
+    scenarioRuntime.outIds.forEach(id => altynRound.outIds.add(id));
+    if (scenarioRuntime.khanOut) altynRound.khanOut = true;
+    altynRound.completedThrows = Math.max(altynRound.completedThrows, altynRound.throwIndex + 1);
+  }
+
+  function setAltynThrowHint() {
+    if (!ui.hint || !altynRound.active || !altynRound.plan) return;
+    const current = Math.min(altynRound.plan.throws.length, altynRound.throwIndex + 1);
+    const total = altynRound.plan.throws.length;
+    const prefix = gameState.language === 'KG' ? 'Ыргытуу' : gameState.language === 'EN' ? 'Throw' : gameState.language === 'ZH' ? '投掷' : 'Бросок';
+    ui.hint.textContent = `${prefix} ${current}/${total}`;
+  }
+

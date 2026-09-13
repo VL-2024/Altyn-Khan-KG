@@ -50,7 +50,7 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   position:absolute;left:2.2%;right:2.2%;top:1.25%;height:6.05%;
   display:flex;justify-content:space-between;gap:2%;align-items:center
 }
-.brand-logo{height:clamp(26px,6.4vw,40px);width:auto;max-width:15%;display:block;object-fit:contain;flex:0 0 auto}
+.brand-logo{height:clamp(52px,12.8vw,80px);width:auto;max-width:28%;display:block;object-fit:contain;flex:0 0 auto}
 .game-title-inline{flex:1 1 auto;min-width:0;text-align:center;padding:0 6px}
 .game-title-main{
   font-family:Georgia,'Times New Roman',serif;font-weight:900;color:#fff;
@@ -88,19 +88,19 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
      below the denom strip, not enough for two rows sized by their own
      top:% position). Chaining off bottom-tools' own bottom-anchor instead
      guarantees a fixed, constant gap between them at any shell size. */
-  position:absolute;z-index:9;left:14%;right:14%;bottom:calc(0.4% + 36px);
-  height:22px;
+  position:absolute;z-index:9;left:10%;right:10%;bottom:calc(0.4% + 48px);
+  height:28px;
   display:flex;align-items:center;justify-content:center;gap:5px;
   pointer-events:auto
 }
 .hint-text{
-  flex:1;min-width:0;text-align:center;font-size:clamp(11px,2.6vw,14px);font-weight:750;line-height:1.2;
+  flex:1;min-width:0;text-align:center;font-size:clamp(14px,3.4vw,18px);font-weight:850;line-height:1.2;
   color:rgba(255,255,255,.88);text-shadow:0 2px 6px rgba(0,0,0,.7);transition:opacity .2s ease
 }
 .hint-text.hint-status{color:#ffd45d}
 .hint-text.hint-collapsed{display:none}
 .hint-toggle{
-  flex:0 0 16px;width:16px;height:16px;padding:0;border-radius:50%;line-height:1;
+  flex:0 0 20px;width:20px;height:20px;padding:0;border-radius:50%;line-height:1;
   border:1px solid rgba(255,255,255,.30);background:rgba(3,12,16,.55);color:rgba(255,255,255,.75);
   font-size:11px;cursor:pointer
 }
@@ -112,17 +112,16 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 .aim-power strong{margin-left:5px;color:#e4ee3e;font-size:12px}
 
 .bottom-tools{
-  position:absolute;left:3.7%;right:3.7%;bottom:0.4%;height:30px;
-  display:grid;grid-template-columns:minmax(0,76%) minmax(0,24%);
-  align-items:center;gap:0;z-index:12;pointer-events:auto
+  position:absolute;left:3.7%;right:3.7%;bottom:0.4%;height:40px;
+  display:flex;align-items:center;gap:8px;z-index:12;pointer-events:auto
 }
-.bottom-controls{min-width:0;display:flex;align-items:center;gap:5px}
+.bottom-controls{min-width:0;display:flex;align-items:center;gap:7px;flex:0 0 auto}
 .mode-switch{
   position:relative;display:flex;border:1px solid rgba(117,163,211,.34);border-radius:10px;overflow:hidden;
   background:rgba(3,23,54,.90);box-shadow:0 4px 10px rgba(0,0,0,.14)
 }
 .mode-switch.hidden{display:none}
-.mode-switch button{border:0;min-width:50px;padding:5px 7px;background:transparent;color:#8196b2;font-weight:900;font-size:11px;line-height:1.1;position:relative}
+.mode-switch button{border:0;min-width:60px;padding:8px 10px;background:transparent;color:#8196b2;font-weight:950;font-size:14px;line-height:1.1;position:relative}
 .mode-switch button.active{background:#24499e;color:#dbe63c}
 .mode-switch button:disabled{opacity:.4}
 /* Periodic "try REAL money" nudge (see maybeNudgeDemoBadge() in game.js) -
@@ -138,21 +137,21 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 
 .info-wrap{position:relative}
 .info-btn{
-  min-width:64px;height:30px;padding:0 12px;border:1px solid rgba(117,163,211,.38);border-radius:11px;
-  background:rgba(3,23,54,.92);color:#dbe63c;font-size:12px;font-weight:950;line-height:1;cursor:pointer
+  min-width:78px;height:38px;padding:0 15px;border:1px solid rgba(117,163,211,.38);border-radius:11px;
+  background:rgba(3,23,54,.92);color:#dbe63c;font-size:15px;font-weight:950;line-height:1;cursor:pointer
 }
 .info-btn.active{border-color:rgba(219,230,60,.62);background:#24499e}
 
 .audio-toggle{
-  flex:0 0 34px;width:34px;height:30px;padding:0;display:grid;place-items:center;border-radius:11px;
-  border:1px solid rgba(117,163,211,.38);background:rgba(3,23,54,.92);color:#7f91aa;font-size:17px;font-weight:950;line-height:1;cursor:pointer
+  flex:0 0 42px;width:42px;height:38px;padding:0;display:grid;place-items:center;border-radius:11px;
+  border:1px solid rgba(117,163,211,.38);background:rgba(3,23,54,.92);color:#7f91aa;font-size:21px;font-weight:950;line-height:1;cursor:pointer
 }
 .audio-toggle.on{border-color:rgba(219,230,60,.48);color:#dbe63c;background:#173d82}
 .audio-toggle:active{transform:translateY(1px)}
 
 .bottom-tools>.ticket-number{
-  margin-left:0;max-width:none;width:100%;padding:0 0 0 8px;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;text-align:right;color:#aebed3;font-size:clamp(9px,2.0vw,12px);font-weight:800;line-height:30px
+  margin-left:2px;max-width:none;width:auto;flex:1 1 auto;padding:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;text-align:left;color:#d4dfef;font-size:clamp(12px,2.8vw,16px);font-weight:900;line-height:40px
 }
 
 .info-menu{

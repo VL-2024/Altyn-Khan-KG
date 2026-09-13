@@ -1,0 +1,33 @@
+  function renderScore() {
+    const physical = computePhysicalResult();
+    if (ui.knocked) ui.knocked.textContent = String(physical.out || 0);
+    const scoreWin = (gameState.ticket && gameState.phase === 'settled') ? Number(gameState.ticket.win || 0) : 0;
+    if (ui.scoreWin) ui.scoreWin.textContent = formatMoney(scoreWin);
+    if (ui.khan) {
+      if (physical.khanOut) {
+        const item = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);
+        ui.khan.textContent = `×${Number(item?.demoMultiplier || gameState.ticket?.multiplier || 0)}`;
+      } else if (gameState.phase === 'settled') ui.khan.textContent = tr('stood');
+      else ui.khan.textContent = '—';
+    }
+  }
+
+  function renderPayoutGrid() {
+    if (!ui.payoutGrid || !ScenarioCfg) return;
+    ui.payoutGrid.innerHTML = '';
+    (ScenarioCfg.ids || []).forEach(id => {
+      const item = ScenarioCfg.get(id);
+      if (!item) return;
+      const row = document.createElement('div');
+      row.className = 'payout-item' + (item.khan ? ' payout-khan' : '');
+      const label = document.createElement('span');
+      if (item.khan) label.textContent = `ХАН · ${item.khanThrow}-й бросок`;
+      else if (item.regularMode === 'range') label.textContent = `${item.regularMin}–${item.regularMax} чүкө`;
+      else label.textContent = `${item.regular} чүкө`;
+      const value = document.createElement('strong');
+      value.textContent = `×${item.demoMultiplier}`;
+      row.append(label, value);
+      ui.payoutGrid.appendChild(row);
+    });
+  }
+

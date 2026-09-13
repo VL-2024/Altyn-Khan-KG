@@ -1,0 +1,9 @@
+  const altynRound = {
+    active: false,
+    plan: null,
+    throwIndex: 0,
+    completedThrows: 0,
+    outIds: new Set(),
+    khanOut: false
+  };
+

@@ -32,8 +32,8 @@ window.X2_GAME_CONFIG = {
     voiceMaxDelayMs: 45000,
     musicDuckFactor: 0.68,
     soundFiles: {
-      throw: 'assets/sounds/throw-whoosh.mp3',
-      impact: 'assets/sounds/impact-chuko.mp3',
+      throw: 'assets/sounds/impact-chuko.mp3',
+      impact: 'assets/sounds/throw-whoosh.mp3',
       khanImpact: 'assets/sounds/impact-khan.mp3',
       win: 'assets/sounds/win-accent.mp3'
     },
