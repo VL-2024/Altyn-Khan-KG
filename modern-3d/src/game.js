@@ -1,0 +1,4399 @@
+(() => {
+  'use strict';
+
+  const C = window.CHUKO3D_CONFIG;
+  const LMS = window.X2LMS;
+  const ScenarioCfg = window.X2AltynScenarioConfig || window.X2ChukoScenarioConfig;
+  const AltynScenarioController = window.X2AltynScenarioController;
+  const LMS_CFG = window.X2_GAME_CONFIG || {};
+  const DICT = window.CHUKO_I18N || { RU: {} };
+  const ui = {
+    canvas: document.getElementById('renderCanvas'),
+    fps: document.getElementById('fps'),
+    frameMs: document.getElementById('frameMs'),
+    bodyCount: document.getElementById('bodyCount'),
+    renderScale: document.getElementById('renderScale'),
+    badge: document.getElementById('physicsBadge'),
+    hintBar: document.getElementById('hint-bar'),
+    hint: document.getElementById('hint-text'),
+    hintToggle: document.getElementById('hint-toggle'),
+    aimPower: document.getElementById('aimPower'),
+    fatal: document.getElementById('fatal'),
+    fatalText: document.getElementById('fatalText'),
+    tuneBtn: document.getElementById('tuneBtn'),
+    tunePanel: document.getElementById('tunePanel'),
+    tuneCloseBtn: document.getElementById('tuneCloseBtn'),
+    tuneDefaultsBtn: document.getElementById('tuneDefaultsBtn'),
+    tuneCopyBtn: document.getElementById('tuneCopyBtn'),
+    tuneOutput: document.getElementById('tuneOutput'),
+    fieldPhoto: document.querySelector('.field-photo'),
+
+    balance: document.getElementById('balance-value'),
+    deposit: document.getElementById('deposit-btn'),
+    modeSwitch: document.getElementById('mode-switch'),
+    langSwitch: document.getElementById('lang-switch'),
+
+    denomSelect: document.getElementById('denom-select'),
+
+    action: document.getElementById('action-btn'),
+    autoPlay: document.getElementById('autoplay-btn'),
+    autoMenu: document.getElementById('autoplay-menu'),
+    autoMenuTitle: document.getElementById('autoplay-menu-title'),
+    autoCounts: document.getElementById('autoplay-counts'),
+
+    toast: document.getElementById('result-toast'),
+    celebration: document.getElementById('celebration-layer'),
+    knocked: document.getElementById('score-knocked'),
+    scoreWin: document.getElementById('score-win'),
+    khan: document.getElementById('score-khan'),
+
+    info: document.getElementById('info-btn'),
+    infoMenu: document.getElementById('info-menu'),
+    infoPayout: document.getElementById('info-payout'),
+    infoHow: document.getElementById('info-how'),
+    infoTickets: document.getElementById('info-tickets'),
+
+    sound: document.getElementById('sound-btn'),
+    music: document.getElementById('music-btn'),
+    ticketNumber: document.getElementById('ticket-number'),
+
+    helpModal: document.getElementById('help-modal'),
+    helpClose: document.getElementById('help-close'),
+    helpOk: document.getElementById('help-ok'),
+
+    payoutModal: document.getElementById('payout-modal'),
+    payoutClose: document.getElementById('payout-close'),
+    payoutOk: document.getElementById('payout-ok'),
+    payoutGrid: document.getElementById('payout-grid'),
+
+    ticketsModal: document.getElementById('tickets-modal'),
+    ticketsClose: document.getElementById('tickets-close'),
+    ticketsOk: document.getElementById('tickets-ok'),
+    ticketsList: document.getElementById('tickets-list')
+  };
+
+  let engine;
+  let scene;
+  let field;
+  let pileShadow = null;
+  let sakaShadow = null;
+  let sakaShadowMat = null;
+  let sakaShadowBaseAlpha = 0.20;
+  let sakaShadowBaseScale = 0.74;
+  let sakaShadowBaseY = 0.014;
+  let impactFlash = null;
+  let impactFlashMat = null;
+  let impactFxState = { active: false, elapsed: 0, duration: 0.42, maxScale: 1.0, power: 0 };
+  let saka = null;
+  let sakaAggregate = null;
+  let bodies = [];
+  const SAKA_VISUAL_LIFT_BASE = 0.105;
+  const SAKA_VISUAL_LIFT_EDGE_FACTOR = 0.055;
+  const SAKA_VISUAL_LIFT_EDGE_START = 0.45;
+  const SAKA_VISUAL_LIFT_EDGE_MAX = 0.095;
+  let thrown = false;
+  let resetTimer = 0;
+  let pileReleasedForThrow = false;
+  let lowFpsStartedAt = 0;
+  let adaptiveScaleApplied = false;
+  let roundIndex = 0;
+  let aimTarget = null;
+  let smoothedAimTarget = null;
+  let aimState = { dragging: false, pointerId: null, power: 0, guideDir: null, targetPoint: null, tapCandidate: false, downX: 0, downY: 0 };
+  let throwState = { active: false, targetPoint: null, guideDir: null, power: 0, impactBoosted: false, flightTime: 0 };
+  let roundSeed = 1;
+  const gameState = {
+    phase: 'loading',
+    mode: 'demo',
+    denomination: Number(C.game?.defaultDenomination || 25),
+    denominations: [...(C.game?.denominations || [25,50,100])],
+    currency: 'KGS',
+    currencyDisplay: 'сом',
+    language: 'RU',
+    demoAllowed: true,
+    balance: 0,
+    demoBalance: Number(LMS_CFG.demoBalance || 10000),
+    realBalance: null,
+    pendingBalance: null,
+    ticket: null,
+    ticketReady: false,
+    resultShown: false,
+    busy: false
+  };
+
+  // ---------------------------------------------------------------------
+  // Full-version UI state ported from v20.61 (audio, autoplay, ticket
+  // history). The 3D scenario/physics engine above remains the single
+  // source of truth for game state; everything here only presents it.
+  // ---------------------------------------------------------------------
+  const audioSettings = {
+    soundEnabled: Boolean(LMS_CFG.audio?.soundEnabled ?? true),
+    musicEnabled: Boolean(LMS_CFG.audio?.musicEnabled ?? false),
+    soundVolume: Math.max(0, Math.min(1, Number(LMS_CFG.audio?.soundVolume ?? 0.22))),
+    musicVolume: Math.max(0, Math.min(1, Number(LMS_CFG.audio?.musicVolume ?? 0.20)))
+  };
+  const musicTracks = Array.isArray(LMS_CFG.audio?.musicTracks) ? LMS_CFG.audio.musicTracks.filter(Boolean) : [];
+  const voiceTags = Array.isArray(LMS_CFG.audio?.voiceTags) ? LMS_CFG.audio.voiceTags.filter(Boolean) : [];
+  const voiceSettings = {
+    volume: Math.max(0, Math.min(1, Number(LMS_CFG.audio?.voiceVolume ?? 0.72))),
+    minDelayMs: Math.max(5000, Number(LMS_CFG.audio?.voiceMinDelayMs ?? 28000)),
+    maxDelayMs: Math.max(7000, Number(LMS_CFG.audio?.voiceMaxDelayMs ?? 45000)),
+    duckFactor: Math.max(0.15, Math.min(1, Number(LMS_CFG.audio?.musicDuckFactor ?? 0.68)))
+  };
+  const soundFiles = {
+    throw: LMS_CFG.audio?.soundFiles?.throw || null,
+    impact: LMS_CFG.audio?.soundFiles?.impact || null,
+    khanImpact: LMS_CFG.audio?.soundFiles?.khanImpact || null,
+    win: LMS_CFG.audio?.soundFiles?.win || null
+  };
+  const effectFileVolume = Math.max(0, Math.min(1, Number(LMS_CFG.audio?.effectFileVolume ?? 0.42)));
+
+  try {
+    const storedSound = localStorage.getItem('x2-chuko-sound');
+    const storedMusic = localStorage.getItem('x2-chuko-music');
+    if (storedSound !== null) audioSettings.soundEnabled = storedSound === '1';
+    if (storedMusic !== null) audioSettings.musicEnabled = storedMusic === '1';
+  } catch (_) {}
+
+  const audioRuntime = {
+    ctx: null, master: null, sfxGain: null, musicGain: null,
+    musicElement: null, musicTrackIndex: -1,
+    voiceElement: null, voiceTimer: null, voiceTagIndex: -1,
+    impactTimer: null, lastPhase: null
+  };
+
+  const autoPlay = {
+    active: false,
+    stopRequested: false,
+    selected: null,
+    total: 0,
+    completed: 0,
+    remaining: 0,
+    fixedStake: null,
+    nextTimer: null,
+    throwTimer: null
+  };
+  const scenarioRuntime = {
+    plan: null,
+    targetIds: new Set(),
+    targetDirections: new Map(),
+    outIds: new Set(),
+    khanTarget: false,
+    khanOut: false,
+    seed: '',
+    impactAt: 0,
+    targetsLockedAtImpact: false,
+    flightPlan: [],
+    scatterStartedAt: 0,
+    scatterActive: false,
+    scatterComplete: false,
+    visualValidation: null,
+    active: false
+  };
+  const altynRound = {
+    active: false,
+    plan: null,
+    throwIndex: 0,
+    completedThrows: 0,
+    outIds: new Set(),
+    khanOut: false
+  };
+
+  // v0.13.20: dynamic round objects are created once and reused on every reset.
+  // This avoids rebuilding convex hulls/materials/shadow casters when the player taps «ЕЩЁ БРОСОК».
+  const roundPool = { initialized: false, chukos: [], khan: null, saka: null };
+  const modelBank = {
+    ready: false,
+    chuko: null,
+    khan: null,
+    saka: null
+  };
+  let prestepRestoreScheduled = false;
+  const prestepRestoreQueue = [];
+  const chukoClampPending = new Set();
+  let sakaClampPending = false;
+  let roundPhysicsFrozen = false;
+  // World XZ that the scatter direction/metric system pivots on. Set from
+  // the tuning.scatterPivotX/Z sliders ("ЦЕНТР РАЗЛЁТА" in the tune panel) -
+  // calibrate these by eye after a throw if the ring of remaining chükö
+  // looks off-centre relative to the white line on the carpet.
+  let scatterPivot = { x: 0, z: 0 };
+
+  // --- TEMPORARY diagnostics for the "SAKA doesn't touch the pile" issue ---
+  // Confirmed fixed (2026-09): the real Havok collision trigger fires
+  // ~1.2s after throw, matching the ballistic flight time, and the scatter
+  // completes naturally without the forced-completion fallback. Left this
+  // infrastructure in place (flip to true) in case similar diagnosis is
+  // needed again; safe to delete entirely once the fix has proven stable.
+  const DEBUG_CONTACT = false;
+  let debugLastLogAt = 0;
+  let debugRoundStartAt = 0;
+  function debugLog(label, data) {
+    if (!DEBUG_CONTACT) return;
+    const t = debugRoundStartAt ? (performance.now() - debugRoundStartAt).toFixed(0) + 'ms' : '?';
+    console.log(`[CHUKO DEBUG t=${t}] ${label}`, data);
+  }
+  function debugLogThrottled(label, data, minGapMs = 120) {
+    if (!DEBUG_CONTACT) return;
+    const now = performance.now();
+    if (now - debugLastLogAt < minGapMs) return;
+    debugLastLogAt = now;
+    debugLog(label, data);
+  }
+  // --- end temporary diagnostics ---
+
+  const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
+  const TUNE_DEFAULTS = Object.freeze({
+    fieldWidth: 88,
+    fieldBottom: 312,
+    fieldX: 2,
+    bgScale: 1.01,
+    bgX: 16,
+    bgY: -44,
+    pileX: -0.10,
+    pileZ: -1.80,
+    scatterPivotX: -0.10,
+    scatterPivotZ: -1.80,
+    spreadX: 0.59,
+    spreadZ: 0.82,
+    chukoScale: 0.62,
+    cameraRadius: 8.40,
+    cameraTargetX: -0.04,
+    cameraTargetZ: 0.26,
+    sakaX: 0.01,
+    sakaZ: 2.85,
+    chukoModelScale: 1.22,
+    chukoModelY: -0.14,
+    khanModelScale: 0.98,
+    khanModelY: -0.15,
+    sakaModelScale: 0.78,
+    sakaModelY: 0.00,
+    sakaModelYawDeg: 0,
+    sakaModelPitchDeg: -100,
+    sakaModelRollDeg: -90
+  });
+
+  function loadTuning() {
+    try {
+      const raw = localStorage.getItem(TUNE_STORAGE_KEY);
+      if (!raw) return { ...TUNE_DEFAULTS };
+      const parsed = JSON.parse(raw);
+      return { ...TUNE_DEFAULTS, ...parsed };
+    } catch (_) {
+      return { ...TUNE_DEFAULTS };
+    }
+  }
+
+  let tuning = loadTuning();
+  let tuningResetTimer = 0;
+
+  function saveTuning() {
+    try { localStorage.setItem(TUNE_STORAGE_KEY, JSON.stringify(tuning)); } catch (_) {}
+  }
+
+  function throwStartPoint() {
+    return { x: Number(tuning.sakaX), y: C.throw.start.y, z: Number(tuning.sakaZ) };
+  }
+
+
+  function pilePieceScale() {
+    return Math.max(0.5, Number(tuning.chukoScale) || 1);
+  }
+
+  function applyPilePieceScale() {
+    if (!roundPool.initialized) return;
+    // v0.12.4: chükö geometry/physics dims are now baked pre-scaled at
+    // creation time in ensureRoundPool(), so the proxy mesh itself needs no
+    // extra node-level scaling any more - it's already the right size.
+    // Setting scaling here again would only double up on that (and still
+    // would not reach the already-built Havok collider, so it was never
+    // doing anything useful for gameplay anyway).
+    for (const item of roundPool.chukos) {
+      if (item?.mesh?.scaling?.setAll) item.mesh.scaling.setAll(1);
+    }
+    // KHAN always keeps its own, separate (unscaled) size.
+    if (roundPool.khan?.mesh?.scaling?.setAll) roundPool.khan.mesh.scaling.setAll(1);
+    applyAllVisualTuning();
+    updatePileShadow();
+  }
+
+
+  function setPileBodiesMotionDynamic() {
+    if (!roundPool.initialized) return;
+    const items = [...roundPool.chukos, roundPool.khan].filter(Boolean);
+    for (const item of items) {
+      const body = item?.aggregate?.body;
+      if (!body) continue;
+      try {
+        body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+        body.setLinearVelocity(BABYLON.Vector3.Zero());
+        body.setAngularVelocity(BABYLON.Vector3.Zero());
+      } catch (_) {}
+    }
+  }
+
+  function releasePileIfImpactIsImminent() {
+    if (pileReleasedForThrow || !throwState.active || !saka || !sakaAggregate || !throwState.targetPoint) return;
+
+    // Deterministic scenario rounds never physically release the pile here -
+    // it stays STATIC until startScenarioScatter() runs the precomputed
+    // flight plan. The single, authoritative contact trigger for that is in
+    // applyImpactBoostIfNeeded(); this function must not also flip
+    // pileReleasedForThrow with its own, looser thresholds, or the scatter
+    // start becomes a race between two different contact definitions.
+    if (scenarioRuntime.active && C.game?.deterministicScatter !== false) return;
+
+    const velocity = readLinearVelocity(sakaAggregate.body);
+    if (velocity.y >= -0.12) return;
+
+    const tp = throwState.targetPoint;
+    const horizontalError = Math.hypot(saka.position.x - tp.x, saka.position.z - tp.z);
+    const releaseY = Number(C.throw.pileReleaseY || 0.58);
+    const maxError = Number(C.throw.pileReleaseHorizontalError || 0.14);
+
+    // Do not free the pile merely because SAKA is near one of the pieces. First
+    // require SAKA to be lined up with the selected X/Z aim point. This prevents
+    // the pile from moving early and prevents an off-axis static collision from
+    // changing the final landing point.
+    if (saka.position.y > releaseY || horizontalError > maxError) return;
+
+    setPileBodiesMotionDynamic();
+    pileReleasedForThrow = true;
+  }
+
+  function getTemplateBounds(meshes) {
+    const geometryMeshes = meshes.filter(m => m && typeof m.getTotalVertices === 'function' && m.getTotalVertices() > 0);
+    let min = new BABYLON.Vector3(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
+    let max = new BABYLON.Vector3(Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY);
+    for (const mesh of geometryMeshes) {
+      mesh.computeWorldMatrix(true);
+      const box = mesh.getBoundingInfo().boundingBox;
+      min = BABYLON.Vector3.Minimize(min, box.minimumWorld);
+      max = BABYLON.Vector3.Maximize(max, box.maximumWorld);
+    }
+    const size = max.subtract(min);
+    return { min, max, size, maxExtent: Math.max(size.x, size.y, size.z) };
+  }
+
+  async function loadGlbTemplate(kind, fileName) {
+    const result = await BABYLON.SceneLoader.ImportMeshAsync(null, C.glb.rootUrl, fileName, scene);
+    const topLevel = result.meshes.filter(m => !m.parent);
+    const root = topLevel.find(m => m.name === '__root__') || topLevel[0] || result.meshes[0];
+    if (!root) throw new Error(`GLB ${kind}: корневой mesh не найден`);
+
+    result.meshes.forEach(m => {
+      m.isPickable = false;
+      m.alwaysSelectAsActiveMesh = false;
+    });
+    const bounds = getTemplateBounds(result.meshes);
+    if (!Number.isFinite(bounds.maxExtent) || bounds.maxExtent <= 0) {
+      throw new Error(`GLB ${kind}: некорректные размеры модели`);
+    }
+    root.setEnabled(false);
+    return { kind, fileName, root, bounds, meshes: result.meshes };
+  }
+
+  async function loadGlbModels() {
+    if (!BABYLON.SceneLoader) throw new Error('Babylon GLTF loader не загрузился');
+    if (ui.badge) ui.badge.textContent = 'HAVOK · GLB…';
+    const [chuko, khan, sakaModel] = await Promise.all([
+      loadGlbTemplate('chuko', C.glb.chukoFile),
+      loadGlbTemplate('khan', C.glb.khanFile),
+      loadGlbTemplate('saka', C.glb.sakaFile)
+    ]);
+    modelBank.chuko = chuko;
+    modelBank.khan = khan;
+    modelBank.saka = sakaModel;
+    modelBank.ready = true;
+    if (ui.badge) ui.badge.textContent = 'HAVOK · GLB READY';
+    console.info('[CHUKO 0.13.20] GLB bounds', {
+      chuko: chuko.bounds.size,
+      khan: khan.bounds.size,
+      saka: sakaModel.bounds.size
+    });
+  }
+
+  function visualTuningForKind(kind) {
+    if (kind === 'chuko') return {
+      scale: Number(tuning.chukoModelScale || 1),
+      y: Number(tuning.chukoModelY || 0),
+      targetMax: Number(C.glb.chukoTargetMax || 0.53),
+      yaw: 0,
+      commonScale: pilePieceScale()
+    };
+    if (kind === 'khan') return {
+      scale: Number(tuning.khanModelScale || 1),
+      y: Number(tuning.khanModelY || 0),
+      targetMax: Number(C.glb.khanTargetMax || 0.54),
+      yaw: 0,
+      commonScale: 1
+    };
+    return {
+      scale: Number(tuning.sakaModelScale || 1),
+      y: Number(tuning.sakaModelY || 0),
+      targetMax: Number(C.glb.sakaTargetMax || 0.76),
+      yaw: Number(tuning.sakaModelYawDeg ?? 20) * Math.PI / 180,
+      pitch: Number(tuning.sakaModelPitchDeg ?? 0) * Math.PI / 180,
+      roll: Number(tuning.sakaModelRollDeg ?? 0) * Math.PI / 180,
+      commonScale: 1
+    };
+  }
+
+  function boostColor3(color, factor, lift = 0) {
+    if (!color) return new BABYLON.Color3(lift, lift, lift);
+    return new BABYLON.Color3(
+      Math.min(1, color.r * factor + lift),
+      Math.min(1, color.g * factor + lift),
+      Math.min(1, color.b * factor + lift)
+    );
+  }
+
+  function brightenImportedMaterial(mat, kind, suffix) {
+    if (!mat || typeof mat.clone !== 'function') return mat;
+    const clone = mat.clone(`${mat.name || kind}-lift-${suffix}`);
+    const warm = kind === 'khan';
+    const factor = warm ? 1.24 : 1.18;
+    const lift = warm ? 0.028 : 0.020;
+
+    if (clone.albedoColor) clone.albedoColor = boostColor3(clone.albedoColor, factor, lift);
+    if (clone.diffuseColor) clone.diffuseColor = boostColor3(clone.diffuseColor, factor, lift);
+    if (clone.specularColor) clone.specularColor = boostColor3(clone.specularColor, warm ? 1.06 : 1.04, 0.0);
+    if (clone.ambientColor) clone.ambientColor = boostColor3(clone.ambientColor, factor, lift * 0.4);
+
+    if (clone.albedoTexture && 'level' in clone.albedoTexture) {
+      clone.albedoTexture.level = (clone.albedoTexture.level || 1) * (warm ? 1.10 : 1.08);
+    }
+    if (clone.diffuseTexture && 'level' in clone.diffuseTexture) {
+      clone.diffuseTexture.level = (clone.diffuseTexture.level || 1) * (warm ? 1.10 : 1.08);
+    }
+
+    if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(0.16, clone.roughness * 0.88);
+    if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.22);
+
+    const emissiveLift = warm
+      ? new BABYLON.Color3(0.11, 0.075, 0.028)
+      : new BABYLON.Color3(0.035, 0.055, 0.11);
+
+    if (clone.emissiveColor) {
+      clone.emissiveColor = new BABYLON.Color3(
+        Math.min(1, clone.emissiveColor.r + emissiveLift.r),
+        Math.min(1, clone.emissiveColor.g + emissiveLift.g),
+        Math.min(1, clone.emissiveColor.b + emissiveLift.b)
+      );
+    } else {
+      clone.emissiveColor = emissiveLift;
+    }
+
+    return clone;
+  }
+
+  function brightenImportedVisualMaterials(kind, meshes, suffix) {
+    if (kind !== 'khan' && kind !== 'saka') return;
+    const cache = new Map();
+    for (const mesh of meshes) {
+      const mat = mesh?.material;
+      if (!mat) continue;
+      const key = String(mat.uniqueId || mat.id || mat.name || Math.random());
+      if (!cache.has(key)) cache.set(key, brightenImportedMaterial(mat, kind, suffix));
+      mesh.material = cache.get(key);
+    }
+  }
+
+  function createGlbVisual(kind, name) {
+    const template = modelBank[kind];
+    if (!template) return null;
+
+    const anchor = new BABYLON.TransformNode(`${name}-visual-anchor`, scene);
+    anchor.rotationQuaternion = BABYLON.Quaternion.Identity();
+    const pose = new BABYLON.TransformNode(`${name}-visual-pose`, scene);
+    pose.parent = anchor;
+    pose.rotationQuaternion = BABYLON.Quaternion.Identity();
+
+    const rootClone = template.root.clone(`${name}-glb-root`, pose, false);
+    if (!rootClone) {
+      anchor.dispose();
+      return null;
+    }
+    rootClone.setEnabled(true);
+    if (typeof rootClone.getDescendants === 'function') {
+      rootClone.getDescendants(false).forEach(n => {
+        if (typeof n.setEnabled === 'function') n.setEnabled(true);
+        if ('isPickable' in n) n.isPickable = false;
+      });
+    }
+
+    const descendants = typeof rootClone.getChildMeshes === 'function' ? rootClone.getChildMeshes(false) : [];
+    if (rootClone.getTotalVertices && rootClone.getTotalVertices() > 0) descendants.push(rootClone);
+    brightenImportedVisualMaterials(kind, descendants, name);
+    descendants.forEach(m => addShadow(m));
+
+    const visual = {
+      kind,
+      anchor,
+      pose,
+      root: rootClone,
+      baseScale: 1 / template.bounds.maxExtent
+    };
+    applyVisualTuning(visual);
+    return visual;
+  }
+
+  function applyVisualTuning(visual) {
+    if (!visual) return;
+    const vt = visualTuningForKind(visual.kind);
+    const s = visual.baseScale * vt.targetMax * vt.scale * vt.commonScale;
+    visual.pose.scaling.setAll(s);
+    visual.pose.position.set(0, vt.y, 0);
+    visual.pose.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(vt.pitch || 0, vt.yaw || 0, vt.roll || 0);
+  }
+
+  function applyAllVisualTuning() {
+    if (!roundPool.initialized) return;
+    roundPool.chukos.forEach(item => applyVisualTuning(item.visual));
+    applyVisualTuning(roundPool.khan?.visual);
+    applyVisualTuning(roundPool.saka?.visual);
+  }
+
+  function sakaVisualLiftY(mesh) {
+    const pileX = Number(tuning.pileX || 0);
+    const pileZ = Number(tuning.pileZ || 0);
+    const radialFromPile = Math.hypot(mesh.position.x - pileX, mesh.position.z - pileZ);
+    const edgeDelta = Math.max(0, radialFromPile - SAKA_VISUAL_LIFT_EDGE_START);
+    const extraLift = Math.min(SAKA_VISUAL_LIFT_EDGE_MAX, edgeDelta * SAKA_VISUAL_LIFT_EDGE_FACTOR);
+    return SAKA_VISUAL_LIFT_BASE + extraLift;
+  }
+
+  function syncVisualItem(item) {
+    if (!item?.mesh || !item?.visual?.anchor) return;
+    const anchor = item.visual.anchor;
+    anchor.position.copyFrom(item.mesh.position);
+    if (item.visual?.kind === 'saka') {
+      // Visual-only anti-clipping lift. It does not touch Havok physics.
+      // The extra lift is radial, so it also works on the left/right edges,
+      // not only on the far Z edge. Shared with sakaScreenPosition() so the
+      // tap/drag hit-test lines up with where SAKA is actually drawn.
+      anchor.position.y += sakaVisualLiftY(item.mesh);
+    }
+    if (item.mesh.rotationQuaternion) {
+      if (!anchor.rotationQuaternion) anchor.rotationQuaternion = BABYLON.Quaternion.Identity();
+      anchor.rotationQuaternion.copyFrom(item.mesh.rotationQuaternion);
+    } else {
+      anchor.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(item.mesh.rotation.x, item.mesh.rotation.y, item.mesh.rotation.z);
+    }
+  }
+
+  function syncAllGlbVisuals() {
+    if (!modelBank.ready || !roundPool.initialized) return;
+    roundPool.chukos.forEach(syncVisualItem);
+    syncVisualItem(roundPool.khan);
+    syncVisualItem(roundPool.saka);
+  }
+
+  function applyDomTuning() {
+    const root = document.documentElement;
+    // --field-bottom/--field-x/--bg-x/--bg-y are stored as "pixels at a
+    // 941x1672 reference shell size" and rescaled to the shell's ACTUAL
+    // current size here. Without this, a fixed px offset is a different
+    // fraction of shell height on a 654px-tall shell (Samsung Internet)
+    // than on a 727-772px-tall one (Safari/Telegram/MAX) even though both
+    // have the same aspect ratio - the 2D art layer (photo) would drift
+    // out of alignment with the 3D scene (which is purely ratio-based)
+    // any time the shell's absolute pixel size differs between devices.
+    const shellEl = ui.shellEl || (ui.shellEl = document.getElementById('shell'));
+    const shellRect = shellEl ? shellEl.getBoundingClientRect() : null;
+    // Reference size is the shell height these numbers were actually tuned
+    // at (via the slider, on a live device), NOT the abstract 941x1672
+    // design-canvas ratio - using 1672 here previously made every value
+    // apply as a much smaller fraction of shell height than what was tuned,
+    // silently dropping the field lower on every device at once.
+    const REF_H = 750, REF_W = REF_H * (941 / 1672);
+    const scaleW = shellRect && shellRect.width ? shellRect.width / REF_W : 1;
+    const scaleH = shellRect && shellRect.height ? shellRect.height / REF_H : 1;
+
+    root.style.setProperty('--field-width', `${Number(tuning.fieldWidth)}%`);
+    root.style.setProperty('--field-bottom', `${(Number(tuning.fieldBottom) * scaleH).toFixed(2)}px`);
+    root.style.setProperty('--field-x', `${(Number(tuning.fieldX) * scaleW).toFixed(2)}px`);
+    root.style.setProperty('--bg-scale', String(Number(tuning.bgScale)));
+    root.style.setProperty('--bg-x', `${(Number(tuning.bgX) * scaleW).toFixed(2)}px`);
+    root.style.setProperty('--bg-y', `${(Number(tuning.bgY) * scaleH).toFixed(2)}px`);
+    updatePileShadow();
+  }
+
+  function applyCameraTuning() {
+    const camera = scene?.activeCamera;
+    if (!camera) return;
+    if (typeof camera.radius === 'number') camera.radius = Number(tuning.cameraRadius);
+    if (camera.target?.set) {
+      camera.target.set(
+        Number(tuning.cameraTargetX),
+        C.camera.target.y,
+        Number(tuning.cameraTargetZ)
+      );
+    }
+  }
+
+  function tuningAffectsRound(key) {
+    return ['pileX','pileZ','spreadX','spreadZ','chukoScale','sakaX','sakaZ'].includes(key);
+  }
+
+  function scheduleTuningRoundReset() {
+    window.clearTimeout(tuningResetTimer);
+    tuningResetTimer = window.setTimeout(() => {
+      if (scene && roundPool.initialized) resetRound();
+    }, 90);
+  }
+
+  function tuneNumberLabel(key, value) {
+    const v = Number(value);
+    if (['fieldWidth'].includes(key)) return `${Math.round(v)}%`;
+    if (['fieldBottom','fieldX','bgX','bgY'].includes(key)) return `${Math.round(v)}px`;
+    if (['bgScale','chukoScale','chukoModelScale','khanModelScale','sakaModelScale'].includes(key)) return `${v.toFixed(2)}×`;
+    if (['sakaModelYawDeg','sakaModelPitchDeg','sakaModelRollDeg'].includes(key)) return `${Math.round(v)}°`; 
+    if (key === 'cameraRadius') return v.toFixed(2);
+    return v.toFixed(2);
+  }
+
+  function refreshTuneUi() {
+    document.querySelectorAll('[data-tune]').forEach(input => {
+      const key = input.dataset.tune;
+      if (!(key in tuning)) return;
+      input.value = String(tuning[key]);
+      const out = document.querySelector(`[data-out="${key}"]`);
+      if (out) out.textContent = tuneNumberLabel(key, tuning[key]);
+    });
+    if (ui.tuneOutput) {
+      ui.tuneOutput.value = JSON.stringify(tuning, null, 2);
+    }
+  }
+
+  function setTunePanelOpen(open) {
+    if (!ui.tunePanel || !ui.tuneBtn) return;
+    ui.tunePanel.hidden = !open;
+    ui.tuneBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    ui.tuneBtn.textContent = open ? '⚙ ЗАКРЫТЬ' : '⚙ НАСТРОЙКА';
+  }
+
+  async function copyTuning() {
+    const text = JSON.stringify(tuning, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      if (ui.tuneCopyBtn) {
+        const old = ui.tuneCopyBtn.textContent;
+        ui.tuneCopyBtn.textContent = 'СКОПИРОВАНО';
+        window.setTimeout(() => { ui.tuneCopyBtn.textContent = old; }, 1200);
+      }
+    } catch (_) {
+      if (ui.tuneOutput) {
+        ui.tuneOutput.focus();
+        ui.tuneOutput.select();
+      }
+    }
+  }
+
+  function bindTuner() {
+    applyDomTuning();
+    refreshTuneUi();
+
+    ui.tuneBtn?.addEventListener('click', () => {
+      setTunePanelOpen(ui.tunePanel?.hidden ?? true);
+    });
+    ui.tuneCloseBtn?.addEventListener('click', () => setTunePanelOpen(false));
+
+    document.querySelectorAll('[data-tune]').forEach(input => {
+      input.addEventListener('input', () => {
+        const key = input.dataset.tune;
+        const min = Number(input.min);
+        const max = Number(input.max);
+        let value = Number(input.value);
+        if (Number.isFinite(min)) value = Math.max(min, value);
+        if (Number.isFinite(max)) value = Math.min(max, value);
+        tuning[key] = value;
+        saveTuning();
+        applyDomTuning();
+        applyCameraTuning();
+        applyPilePieceScale();
+        applyAllVisualTuning();
+        const out = document.querySelector(`[data-out="${key}"]`);
+        if (out) out.textContent = tuneNumberLabel(key, value);
+        if (ui.tuneOutput) ui.tuneOutput.value = JSON.stringify(tuning, null, 2);
+        if (tuningAffectsRound(key)) scheduleTuningRoundReset();
+      });
+    });
+
+    ui.tuneDefaultsBtn?.addEventListener('click', () => {
+      tuning = { ...TUNE_DEFAULTS };
+      saveTuning();
+      applyDomTuning();
+      applyCameraTuning();
+      applyPilePieceScale();
+      applyAllVisualTuning();
+      refreshTuneUi();
+      scheduleTuningRoundReset();
+    });
+    ui.tuneCopyBtn?.addEventListener('click', copyTuning);
+  }
+
+  applyDomTuning();
+
+  function showFatal(error) {
+    console.error(error);
+    ui.fatal.hidden = false;
+    ui.fatalText.textContent = String(error?.message || error || 'Unknown error');
+    if (ui.action) ui.action.disabled = true;
+  }
+
+  function isMobile() {
+    return matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }
+
+  function configureRenderScale() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const cappedDpr = Math.min(dpr, C.mobile.maxDevicePixelRatio);
+    engine.setHardwareScalingLevel(1 / cappedDpr);
+    ui.renderScale.textContent = `${cappedDpr.toFixed(2)}×`;
+  }
+
+  async function initPhysics() {
+    if (typeof HavokPhysics !== 'function') throw new Error('HavokPhysics не загрузился. Проверьте доступ к CDN.');
+    const hk = await HavokPhysics();
+    const plugin = new BABYLON.HavokPlugin(true, hk);
+    scene.enablePhysics(new BABYLON.Vector3(0, C.physics.gravity, 0), plugin);
+    if (ui.badge) ui.badge.textContent = 'HAVOK · READY';
+  }
+
+  function material(name, color, roughness = 0.78, metallic = 0.0) {
+    const m = new BABYLON.PBRMaterial(name, scene);
+    m.albedoColor = color;
+    m.roughness = roughness;
+    m.metallic = metallic;
+    return m;
+  }
+
+  function createRadialShadowTexture(name) {
+    const size = 256;
+    const tex = new BABYLON.DynamicTexture(name, { width: size, height: size }, scene, false);
+    const ctx = tex.getContext();
+    ctx.clearRect(0, 0, size, size);
+    const grad = ctx.createRadialGradient(size * 0.5, size * 0.5, size * 0.10, size * 0.5, size * 0.5, size * 0.5);
+    grad.addColorStop(0.0, 'rgba(0,0,0,0.85)');
+    grad.addColorStop(0.32, 'rgba(0,0,0,0.46)');
+    grad.addColorStop(0.66, 'rgba(0,0,0,0.12)');
+    grad.addColorStop(1.0, 'rgba(0,0,0,0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    tex.hasAlpha = true;
+    tex.update(false);
+    return tex;
+  }
+
+  function createImpactTexture(name, mode = 'ring') {
+    const size = 256;
+    const tex = new BABYLON.DynamicTexture(name, { width: size, height: size }, scene, false);
+    const ctx = tex.getContext();
+    ctx.clearRect(0, 0, size, size);
+    const cx = size * 0.5;
+    const cy = size * 0.5;
+
+    if (mode === 'ring') {
+      const grad = ctx.createRadialGradient(cx, cy, size * 0.14, cx, cy, size * 0.5);
+      grad.addColorStop(0.00, 'rgba(255,255,255,0.0)');
+      grad.addColorStop(0.42, 'rgba(255,255,255,0.0)');
+      grad.addColorStop(0.60, 'rgba(255,255,255,0.36)');
+      grad.addColorStop(0.76, 'rgba(255,255,255,0.92)');
+      grad.addColorStop(0.88, 'rgba(255,255,255,0.24)');
+      grad.addColorStop(1.00, 'rgba(255,255,255,0.0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+    } else {
+      const grad = ctx.createRadialGradient(cx, cy, size * 0.06, cx, cy, size * 0.5);
+      grad.addColorStop(0.00, 'rgba(255,245,220,0.92)');
+      grad.addColorStop(0.22, 'rgba(255,220,170,0.50)');
+      grad.addColorStop(0.52, 'rgba(255,184,96,0.18)');
+      grad.addColorStop(1.00, 'rgba(255,184,96,0.0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+    }
+
+    tex.hasAlpha = true;
+    tex.update(false);
+    return tex;
+  }
+
+  function createShadowPlane(name, width, height, alpha = 0.22) {
+    const mesh = BABYLON.MeshBuilder.CreateGround(name, { width, height, subdivisions: 1 }, scene);
+    const mat = new BABYLON.StandardMaterial(`${name}-mat`, scene);
+    mat.diffuseColor = new BABYLON.Color3(0, 0, 0);
+    mat.specularColor = new BABYLON.Color3(0, 0, 0);
+    mat.emissiveColor = new BABYLON.Color3(0, 0, 0);
+    mat.opacityTexture = createRadialShadowTexture(`${name}-tex`);
+    mat.useAlphaFromDiffuseTexture = false;
+    mat.alpha = alpha;
+    mat.disableLighting = true;
+    mesh.material = mat;
+    mesh.isPickable = false;
+    mesh.receiveShadows = false;
+    mesh.renderingGroupId = 0;
+    return { mesh, mat };
+  }
+
+  function createImpactPlane(name, width, height, alpha, mode = 'ring') {
+    const mesh = BABYLON.MeshBuilder.CreateGround(name, { width, height, subdivisions: 1 }, scene);
+    const mat = new BABYLON.StandardMaterial(`${name}-mat`, scene);
+    mat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+    mat.specularColor = new BABYLON.Color3(0, 0, 0);
+    mat.emissiveColor = mode === 'ring'
+      ? new BABYLON.Color3(1.0, 0.84, 0.44)
+      : new BABYLON.Color3(0.96, 0.66, 0.24);
+    mat.opacityTexture = createImpactTexture(`${name}-tex`, mode);
+    mat.useAlphaFromDiffuseTexture = false;
+    mat.alpha = alpha;
+    mat.disableLighting = true;
+    mesh.material = mat;
+    mesh.isPickable = false;
+    mesh.receiveShadows = false;
+    mesh.renderingGroupId = 1;
+    mesh.setEnabled(false);
+    return { mesh, mat };
+  }
+
+  function updatePileShadow() {
+    if (!pileShadow) return;
+    const spreadX = Number(tuning.spreadX || 0.7);
+    const spreadZ = Number(tuning.spreadZ || 0.68);
+    const pieceScale = pilePieceScale();
+    pileShadow.position.set(Number(tuning.pileX || 0), 0.012, Number(tuning.pileZ || 0) - 0.03);
+    pileShadow.scaling.x = (1.10 + spreadX * 1.85) * pieceScale;
+    pileShadow.scaling.z = (0.96 + spreadZ * 1.62) * pieceScale;
+  }
+
+  function updateSakaShadow() {
+    if (!sakaShadow || !saka || !sakaShadowMat) return;
+    const h = Math.max(0, saka.position.y);
+    const fade = Math.max(0.28, 1 - h * 0.10);
+    const scale = Math.max(0.52, 1 - h * 0.14);
+    sakaShadow.position.set(saka.position.x, sakaShadowBaseY, saka.position.z);
+    sakaShadow.scaling.x = sakaShadowBaseScale * scale;
+    sakaShadow.scaling.z = sakaShadowBaseScale * 0.84 * scale;
+    sakaShadowMat.alpha = sakaShadowBaseAlpha * fade;
+  }
+
+  function triggerImpactFx(point, power = 0.6) {
+    const p = clamp01(power);
+
+    // Very short local contact flash only; no expanding ring.
+    if (impactFlash && impactFlashMat) {
+      impactFlash.position.set(point.x, 0.015, point.z);
+      impactFlash.scaling.setAll(0.30 + p * 0.10);
+      impactFlashMat.alpha = 0.16 + p * 0.05;
+      impactFlash.setEnabled(true);
+    }
+
+    impactFxState = {
+      active: true,
+      elapsed: 0,
+      duration: 0.16 + p * 0.06,
+      maxScale: 0.38 + p * 0.10,
+      power: p
+    };
+
+  }
+
+  function updateImpactFx(dt) {
+    if (!impactFxState.active) return;
+    impactFxState.elapsed += dt;
+    const t = Math.min(1, impactFxState.elapsed / Math.max(0.001, impactFxState.duration));
+    const easeOut = 1 - Math.pow(1 - t, 2.0);
+
+    if (impactFlash && impactFlashMat) {
+      const s = 0.30 + impactFxState.maxScale * 0.38 * easeOut;
+      impactFlash.scaling.x = s;
+      impactFlash.scaling.z = s * 0.88;
+      impactFlashMat.alpha = (1 - t) * (0.14 + impactFxState.power * 0.04);
+    }
+
+    if (t >= 1) {
+      impactFxState.active = false;
+      if (impactFlash) impactFlash.setEnabled(false);
+    }
+  }
+
+  function updateShadowHelpers() {
+    updatePileShadow();
+    updateSakaShadow();
+  }
+
+  // v0.6 organic astragalus proxy.
+  // The body is now one lofted mesh instead of a group of intersecting spheres.
+  // Visually this reads much closer to a real chuko/saka while remaining cheap
+  // enough for mobile and keeping a single CONVEX_HULL collider.
+  function makeOrganicBone(name, dims, mat, opts = {}) {
+    const ringCount = isMobile() ? (C.visual?.organicRingsMobile || 8) : (C.visual?.organicRingsDesktop || 11);
+    const segCount = isMobile() ? (C.visual?.organicSegmentsMobile || 14) : (C.visual?.organicSegmentsDesktop || 18);
+    const positions = [];
+    const indices = [];
+    const normals = [];
+    const uvs = [];
+
+    for (let r = 0; r <= ringCount; r++) {
+      const t = -1 + (2 * r / ringCount);              // long axis: -1..1
+      const a = Math.abs(t);
+      const flare = Math.pow(a, 1.42);
+      const endSoft = Math.pow(a, 3.1);
+
+      // Hourglass waist + fuller ends, matching the characteristic talus silhouette.
+      const rx = dims.width * 0.5 * (0.70 + 0.30 * flare);
+      const ry = dims.height * 0.5 * (0.72 + 0.28 * Math.pow(a, 1.22));
+      const twist = 0.105 * Math.sin(t * Math.PI * 0.5);
+      const xBias = dims.width * 0.035 * Math.sin(t * Math.PI);
+      const yBias = dims.height * 0.025 * Math.sin((t + 0.18) * Math.PI);
+
+      for (let j = 0; j < segCount; j++) {
+        const q = j / segCount;
+        const th = q * Math.PI * 2 + twist;
+        const c = Math.cos(th);
+        const sn = Math.sin(th);
+
+        // Four soft lobes on the ends, but a smoother centre than the v0.5 blob proxy.
+        const lobe = 1 + (0.07 + 0.045 * flare) * Math.cos(2 * th) + 0.025 * Math.sin(3 * th + t * 1.7);
+        const topValley = Math.max(0, sn) * (1 - a) * dims.height * 0.055;
+        const lowerValley = Math.max(0, -sn) * (1 - a) * dims.height * 0.030;
+        const endRound = 1 - 0.035 * endSoft * Math.cos(th);
+
+        const x = xBias + rx * lobe * c * endRound;
+        const y = yBias + ry * (1 + 0.055 * Math.cos(2 * th)) * sn - topValley + lowerValley;
+        const z = t * dims.depth * 0.5;
+        positions.push(x, y, z);
+        uvs.push(q, r / ringCount);
+      }
+    }
+
+    for (let r = 0; r < ringCount; r++) {
+      for (let j = 0; j < segCount; j++) {
+        const nj = (j + 1) % segCount;
+        const a = r * segCount + j;
+        const b = r * segCount + nj;
+        const c = (r + 1) * segCount + j;
+        const d = (r + 1) * segCount + nj;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+
+    // End caps.
+    const cap0 = positions.length / 3;
+    positions.push(0, 0, -dims.depth * 0.5);
+    uvs.push(0.5, 0.5);
+    const cap1 = positions.length / 3;
+    positions.push(0, 0, dims.depth * 0.5);
+    uvs.push(0.5, 0.5);
+    for (let j = 0; j < segCount; j++) {
+      const nj = (j + 1) % segCount;
+      indices.push(cap0, nj, j);
+      const last = ringCount * segCount;
+      indices.push(cap1, last + j, last + nj);
+    }
+
+    BABYLON.VertexData.ComputeNormals(positions, indices, normals);
+    const vd = new BABYLON.VertexData();
+    vd.positions = positions;
+    vd.indices = indices;
+    vd.normals = normals;
+    vd.uvs = uvs;
+
+    const mesh = new BABYLON.Mesh(name, scene);
+    vd.applyToMesh(mesh, true);
+    mesh.material = mat;
+
+    // A tiny non-uniform scale avoids the sterile mirrored look.
+    mesh.scaling.x = opts.scaleX || 1;
+    mesh.scaling.y = opts.scaleY || 1;
+    return mesh;
+  }
+
+  function addTopBadge(parent, kind, dims) {
+    if (!parent) return;
+    if (kind === 'khan') {
+      const enamelMat = material(`${parent.name}-enamel`, new BABYLON.Color3(0.018, 0.014, 0.012), 0.18, 0.76);
+      const plate = BABYLON.MeshBuilder.CreateSphere(`${parent.name}-plate`, { diameter: 1, segments: isMobile() ? 10 : 14 }, scene);
+      plate.parent = parent;
+      plate.position.set(0, dims.height * 0.38, -dims.depth * 0.015);
+      plate.scaling.set(dims.width * 0.34, dims.height * 0.045, dims.depth * 0.27);
+      plate.material = enamelMat;
+
+      const goldMat = material(`${parent.name}-badge-gold`, new BABYLON.Color3(0.86, 0.51, 0.07), 0.20, 0.92);
+      const crest = BABYLON.MeshBuilder.CreateCylinder(`${parent.name}-crest`, {
+        diameter: dims.width * 0.17,
+        height: dims.height * 0.028,
+        tessellation: 4
+      }, scene);
+      crest.parent = parent;
+      crest.position.set(0, dims.height * 0.422, -dims.depth * 0.015);
+      crest.rotation.y = Math.PI / 4;
+      crest.material = goldMat;
+      return;
+    }
+
+    if (kind === 'saka') {
+      const goldMat = material(`${parent.name}-gold`, new BABYLON.Color3(0.91, 0.55, 0.08), 0.24, 0.88);
+      const diamond = BABYLON.MeshBuilder.CreateCylinder(`${parent.name}-diamond`, {
+        diameter: dims.width * 0.22,
+        height: dims.height * 0.03,
+        tessellation: 4
+      }, scene);
+      diamond.parent = parent;
+      diamond.position.set(0, dims.height * 0.39, -dims.depth * 0.015);
+      diamond.rotation.y = Math.PI / 4;
+      diamond.material = goldMat;
+
+      // Four small gold studs echo the approved blue/gold SAKA references.
+      const studPositions = [
+        [-0.20, 0.22], [0.20, 0.22], [-0.20, -0.22], [0.20, -0.22]
+      ];
+      studPositions.forEach(([x, z], i) => {
+        const stud = BABYLON.MeshBuilder.CreateSphere(`${parent.name}-stud-${i}`, { diameter: dims.width * 0.075, segments: 8 }, scene);
+        stud.parent = parent;
+        stud.position.set(x * dims.width, dims.height * 0.385, z * dims.depth);
+        stud.scaling.y = 0.34;
+        stud.material = goldMat;
+      });
+    }
+  }
+
+  function makeChukoBone(name, dims, mat, khan = false) {
+    const mesh = makeOrganicBone(name, dims, mat, {
+      scaleX: khan ? 1.03 : (0.98 + Math.random() * 0.04),
+      scaleY: khan ? 1.02 : (0.98 + Math.random() * 0.035)
+    });
+    if (khan) addTopBadge(mesh, 'khan', dims);
+    return mesh;
+  }
+
+  function makeSakaBone(name, dims, mat) {
+    const mesh = makeOrganicBone(name, dims, mat, { scaleX: 1.04, scaleY: 1.03 });
+    addTopBadge(mesh, 'saka', dims);
+    return mesh;
+  }
+
+  function createEnvironment() {
+    // v0.13.20: background and field are now DOM/CSS layers, not Babylon meshes.
+    // Babylon is used only for 3D pieces, trajectory and physics.
+    scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
+    scene.imageProcessingConfiguration.toneMappingEnabled = true;
+    scene.imageProcessingConfiguration.toneMappingType = BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
+    scene.imageProcessingConfiguration.exposure = 1.02;
+    scene.imageProcessingConfiguration.contrast = 1.04;
+    scene.fogMode = BABYLON.Scene.FOGMODE_NONE;
+
+    const camera = new BABYLON.ArcRotateCamera(
+      'camera',
+      C.camera.alpha,
+      isMobile() ? C.camera.betaMobile : C.camera.betaDesktop,
+      Number(tuning.cameraRadius),
+      new BABYLON.Vector3(Number(tuning.cameraTargetX), C.camera.target.y, Number(tuning.cameraTargetZ)),
+      scene
+    );
+    camera.lowerRadiusLimit = 7.2;
+    camera.upperRadiusLimit = 10.2;
+    camera.lowerBetaLimit = 0.72;
+    camera.upperBetaLimit = 1.20;
+    camera.fov = 0.69;
+    camera.inputs.clear();
+
+    const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0.0, 1, -0.05), scene);
+    hemi.intensity = 0.88;
+    hemi.diffuse = new BABYLON.Color3(0.92, 0.91, 0.88);
+    hemi.groundColor = new BABYLON.Color3(0.20, 0.19, 0.18);
+
+    const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-0.40, -1, 0.26), scene);
+    sun.position = new BABYLON.Vector3(5, 8, -7);
+    sun.intensity = 1.66;
+    sun.diffuse = new BABYLON.Color3(1.0, 0.90, 0.72);
+
+    const shadowMapSize = isMobile() ? 512 : 1024;
+    const shadows = new BABYLON.ShadowGenerator(shadowMapSize, sun);
+    shadows.usePercentageCloserFiltering = true;
+    shadows.bias = 0.0018;
+    scene.metadata = { shadows };
+
+    // Invisible collision arena. The user sees the original 2D field image in the DOM.
+    field = BABYLON.MeshBuilder.CreateCylinder('field', {
+      height: C.field.thickness,
+      diameter: C.field.visualRadius * 2,
+      tessellation: 64
+    }, scene);
+    field.position.y = -C.field.thickness / 2;
+    field.isVisible = false;
+
+    const fieldPhysicsMesh = BABYLON.MeshBuilder.CreateCylinder('field-physics', {
+      height: C.field.thickness,
+      diameter: C.field.radius * 2,
+      tessellation: 48
+    }, scene);
+    fieldPhysicsMesh.position.copyFrom(field.position);
+    fieldPhysicsMesh.isVisible = false;
+    const fieldAggregate = new BABYLON.PhysicsAggregate(
+      fieldPhysicsMesh,
+      BABYLON.PhysicsShapeType.CYLINDER,
+      { mass: 0, friction: C.physics.fieldFriction, restitution: C.physics.fieldRestitution },
+      scene
+    );
+    bodies.push({ mesh: fieldPhysicsMesh, aggregate: fieldAggregate, permanent: true });
+
+    // Safety floor, placed well below the visible play area.
+    const groundPhysicsMesh = BABYLON.MeshBuilder.CreateBox('ground-physics', { width: 25, depth: 25, height: 0.18 }, scene);
+    groundPhysicsMesh.position.y = -3.4;
+    groundPhysicsMesh.isVisible = false;
+    const groundAggregate = new BABYLON.PhysicsAggregate(
+      groundPhysicsMesh,
+      BABYLON.PhysicsShapeType.BOX,
+      { mass: 0, friction: C.physics.groundFriction, restitution: C.physics.groundRestitution },
+      scene
+    );
+    bodies.push({ mesh: groundPhysicsMesh, aggregate: groundAggregate, permanent: true });
+
+    const pileShadowHelper = createShadowPlane('pile-shadow', 2.5, 2.0, 0.24);
+    pileShadow = pileShadowHelper.mesh;
+    pileShadow.rotationQuaternion = BABYLON.Quaternion.Identity();
+
+    const sakaShadowHelper = createShadowPlane('saka-shadow', 0.9, 0.72, sakaShadowBaseAlpha);
+    sakaShadow = sakaShadowHelper.mesh;
+    sakaShadowMat = sakaShadowHelper.mat;
+    sakaShadow.rotationQuaternion = BABYLON.Quaternion.Identity();
+
+
+    const impactFlashHelper = createImpactPlane('impact-flash', 1.25, 1.25, 0.0, 'flash');
+    impactFlash = impactFlashHelper.mesh;
+    impactFlashMat = impactFlashHelper.mat;
+    impactFlash.rotationQuaternion = BABYLON.Quaternion.Identity();
+
+    updatePileShadow();
+  }
+
+  function addShadow(mesh) {
+    const shadows = scene.metadata?.shadows;
+    if (shadows && mesh) shadows.addShadowCaster(mesh, true);
+  }
+
+  function createPiece(name, dims, pos, color, isKhan = false, yaw = 0) {
+    const mat = material(`${name}-mat`, color, isKhan ? 0.26 : 0.62, isKhan ? 0.90 : 0.02);
+    mat.clearCoat.isEnabled = true;
+    mat.clearCoat.intensity = isKhan ? 0.74 : 0.18;
+    mat.clearCoat.roughness = isKhan ? 0.20 : 0.52;
+    if (isKhan) {
+      mat.emissiveColor = new BABYLON.Color3(0.025, 0.012, 0.002);
+    }
+    const mesh = makeChukoBone(name, dims, mat, isKhan);
+    mesh.position.copyFrom(pos);
+    mesh.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(
+      (Math.random() - 0.5) * C.pile.angleJitter,
+      yaw + (Math.random() - 0.5) * C.pile.angleJitter,
+      (Math.random() - 0.5) * C.pile.angleJitter
+    );
+    addShadow(mesh);
+
+    // v0.3: convex hull follows the irregular proxy silhouette much better than a box.
+    const aggregate = new BABYLON.PhysicsAggregate(
+      mesh,
+      BABYLON.PhysicsShapeType.CONVEX_HULL,
+      {
+        mass: dims.mass,
+        friction: C.physics.friction,
+        restitution: C.physics.restitution
+      },
+      scene
+    );
+    const role = isKhan ? 'khan' : 'chuko';
+    const visual = modelBank.ready ? createGlbVisual(role, name) : null;
+    mesh.isVisible = !visual;
+    bodies.push({ mesh, aggregate, role });
+    return { mesh, aggregate, visual };
+  }
+
+  // v0.13.20 pooling/reset -------------------------------------------------------
+  // Havok convex hull construction is relatively expensive compared with simply
+  // teleporting an existing body. We therefore build the 12 chuko + KHAN + SAKA
+  // once, keep their PhysicsAggregates alive and only reset their transforms.
+  function queueBodyTransformReset(item, position, rotationQuaternion, activateAfterSync) {
+    if (!item?.aggregate?.body || !item?.mesh) return;
+    const body = item.aggregate.body;
+
+    // Freeze first so the previous round cannot add another impulse while the body
+    // is being teleported. Havok's mesh->body prestep sync is normally disabled
+    // for performance, so enable it for exactly one frame.
+    body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+    body.setLinearVelocity(BABYLON.Vector3.Zero());
+    body.setAngularVelocity(BABYLON.Vector3.Zero());
+    body.disablePreStep = false;
+
+    item.mesh.position.copyFrom(position);
+    item.mesh.rotationQuaternion = rotationQuaternion.clone();
+    item.mesh.computeWorldMatrix(true);
+
+    prestepRestoreQueue.push({ body, activateAfterSync });
+    if (!prestepRestoreScheduled) {
+      prestepRestoreScheduled = true;
+      scene.onAfterRenderObservable.addOnce(() => {
+        const queue = prestepRestoreQueue.splice(0);
+        prestepRestoreScheduled = false;
+        for (const entry of queue) {
+          try {
+            entry.body.disablePreStep = true;
+            if (entry.activateAfterSync) {
+              entry.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+              entry.body.setLinearVelocity(BABYLON.Vector3.Zero());
+              entry.body.setAngularVelocity(BABYLON.Vector3.Zero());
+            }
+          } catch (_) {}
+        }
+      });
+    }
+  }
+
+  function ensureRoundPool() {
+    if (roundPool.initialized) return;
+
+    const chukoColors = [
+      new BABYLON.Color3(0.78,0.56,0.30),
+      new BABYLON.Color3(0.70,0.47,0.24),
+      new BABYLON.Color3(0.86,0.64,0.36)
+    ];
+
+    const d = C.pieces.chuko;
+    const pileScale = pilePieceScale();
+    // Bake the intended gameplay scale directly into the geometry/physics
+    // dims instead of scaling the mesh node after the fact. makeOrganicBone()
+    // builds real vertex positions from these numbers, and the CONVEX_HULL
+    // PhysicsAggregate created right after captures that geometry at whatever
+    // size it has at that moment - a later `mesh.scaling.setAll(pileScale)`
+    // (applyPilePieceScale()) never reaches the already-built Havok shape, so
+    // the collider used to stay full-size while the pile-placement math
+    // elsewhere assumed a `pileScale`-sized piece. That gap left an
+    // oversized, invisible physics pile: SAKA rested on top of it well above
+    // where the pieces are actually drawn and the contact trigger never saw
+    // a real hit.
+    const chukoPhysicsDims = {
+      width: d.width * pileScale,
+      height: d.height * pileScale,
+      depth: d.depth * pileScale,
+      mass: d.mass
+    };
+    for (let i = 0; i < C.pile.chukoCount; i++) {
+      const item = createPiece(
+        `chuko-${i+1}`,
+        chukoPhysicsDims,
+        new BABYLON.Vector3(0, 4 + i * 0.03, 0),
+        chukoColors[i % chukoColors.length],
+        false,
+        0
+      );
+      roundPool.chukos.push(item);
+    }
+
+    const kd = C.pieces.khan;
+    roundPool.khan = createPiece(
+      'KHAN',
+      kd,
+      new BABYLON.Vector3(0, 4.8, 0),
+      new BABYLON.Color3(0.63, 0.30, 0.035),
+      true,
+      0
+    );
+
+    applyPilePieceScale();
+
+    const sd = C.pieces.saka;
+    const sakaMat = material('saka-mat', new BABYLON.Color3(0.018, 0.16, 0.62), 0.20, 0.54);
+    sakaMat.clearCoat.isEnabled = true;
+    sakaMat.clearCoat.intensity = 0.78;
+    sakaMat.clearCoat.roughness = 0.19;
+    const sakaMesh = makeSakaBone('SAKA', sd, sakaMat);
+    { const start = throwStartPoint(); sakaMesh.position.set(start.x, start.y, start.z); }
+    sakaMesh.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(0.18, -0.45, 0.12);
+    addShadow(sakaMesh);
+    const aggregate = new BABYLON.PhysicsAggregate(
+      sakaMesh,
+      BABYLON.PhysicsShapeType.CONVEX_HULL,
+      {
+        mass: sd.mass,
+        friction: C.physics.sakaFriction,
+        restitution: C.physics.sakaRestitution
+      },
+      scene
+    );
+    const sakaVisual = modelBank.ready ? createGlbVisual('saka', 'SAKA') : null;
+    sakaMesh.isVisible = !sakaVisual;
+    bodies.push({ mesh: sakaMesh, aggregate, role: 'saka' });
+    roundPool.saka = { mesh: sakaMesh, aggregate, visual: sakaVisual };
+
+    // Real collision detection for the deterministic scatter trigger - see
+    // onSakaCollision(). Enabled once here since this body is pooled/reused
+    // for every round.
+    try {
+      aggregate.body.setCollisionCallbackEnabled(true);
+      aggregate.body.getCollisionObservable().add(onSakaCollision);
+      debugLog('SAKA collision callback registered OK', {});
+    } catch (err) {
+      console.warn('[CHUKO 0.13.20] SAKA collision callback unavailable, relying on the height/radius fallback only', err);
+      debugLog('SAKA collision callback FAILED to register', { error: String(err) });
+    }
+
+    roundPool.initialized = true;
+    applyAllVisualTuning();
+    syncAllGlbVisuals();
+  }
+
+  function pilePositions() {
+    // World-space analogue of the approved compact v20.61 4×3 layout.
+    const sx = Number(tuning.spreadX);
+    const sz = Number(tuning.spreadZ);
+    return [
+      [-0.86*sx,-0.56*sz],[-0.29*sx,-0.68*sz],[ 0.29*sx,-0.68*sz],[ 0.86*sx,-0.56*sz],
+      [-1.02*sx,-0.03*sz],[-0.48*sx,-0.02*sz],[ 0.48*sx,-0.02*sz],[ 1.02*sx,-0.03*sz],
+      [-0.86*sx, 0.50*sz],[-0.29*sx, 0.60*sz],[ 0.29*sx, 0.60*sz],[ 0.86*sx, 0.50*sz]
+    ];
+  }
+
+  function hashString(str) {
+    let h = 2166136261 >>> 0;
+    for (let i=0;i<String(str).length;i++) {
+      h ^= String(str).charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function seededRng(seed) {
+    let a = hashString(seed) || 1;
+    return () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffled(values, rng) {
+    const a = [...values];
+    for (let i=a.length-1;i>0;i--) {
+      const j = Math.floor(rng()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  }
+
+  function scenarioPlan(value) {
+    const item = ScenarioCfg?.getOrDefault(value);
+    if (!item) return {regular:0,khan:false,key:'ZERO',id:1};
+    return {regular:Number(item.regular||0), khan:Boolean(item.khan), key:item.key, id:item.id};
+  }
+
+  function currentAltynThrow() {
+    return altynRound.active && altynRound.plan?.throws
+      ? (altynRound.plan.throws[altynRound.throwIndex] || null)
+      : null;
+  }
+
+  function clearAltynRoundRuntime() {
+    altynRound.active = false;
+    altynRound.plan = null;
+    altynRound.throwIndex = 0;
+    altynRound.completedThrows = 0;
+    altynRound.outIds = new Set();
+    altynRound.khanOut = false;
+  }
+
+  function activateAltynThrow(index = altynRound.throwIndex) {
+    if (!altynRound.active || !altynRound.plan?.throws?.length) return false;
+    const safeIndex = Math.max(0, Math.min(altynRound.plan.throws.length - 1, Number(index) || 0));
+    altynRound.throwIndex = safeIndex;
+    const step = altynRound.plan.throws[safeIndex];
+    if (!step) return false;
+
+    scenarioRuntime.plan = {
+      regular: Number(step.regularOut || 0),
+      khan: Boolean(step.khanOut),
+      key: `${altynRound.plan.scenarioKey}_THROW_${step.index}`,
+      id: altynRound.plan.scenarioId,
+      throwIndex: step.index
+    };
+    scenarioRuntime.targetIds = new Set();
+    scenarioRuntime.targetDirections = new Map();
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanTarget = Boolean(step.khanOut);
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.seed = step.seed;
+    scenarioRuntime.impactAt = 0;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.visualValidation = null;
+    scenarioRuntime.active = true;
+    return true;
+  }
+
+  function prepareScenarioRuntime(ticket) {
+    if (!AltynScenarioController) throw new Error('ALTYN_SCENARIO_CONTROLLER_NOT_LOADED');
+    const fullPlan = AltynScenarioController.buildPlan(ticket?.ticketId, ticket?.scenario);
+    if (!AltynScenarioController.validatePlan(fullPlan)) throw new Error('ALTYN_SCENARIO_PLAN_INVALID');
+
+    altynRound.active = true;
+    altynRound.plan = fullPlan;
+    altynRound.throwIndex = 0;
+    altynRound.completedThrows = 0;
+    altynRound.outIds = new Set();
+    altynRound.khanOut = false;
+    activateAltynThrow(0);
+
+    console.info('[ALTYN] ticket throw plan', {
+      ticketId: ticket?.ticketId,
+      scenario: ticket?.scenario,
+      throws: fullPlan.throws.map(t => ({
+        index: t.index,
+        regularOut: t.regularOut,
+        khanOut: t.khanOut,
+        final: t.final
+      }))
+    });
+  }
+
+  function clearScenarioRuntime() {
+    scenarioRuntime.plan = null;
+    scenarioRuntime.targetIds = new Set();
+    scenarioRuntime.targetDirections = new Map();
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanTarget = false;
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.seed = '';
+    scenarioRuntime.impactAt = 0;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.visualValidation = null;
+    scenarioRuntime.active = false;
+    clearAltynRoundRuntime();
+  }
+
+  function tr(key) {
+    const lang = DICT[gameState.language] || DICT.RU || {};
+    return lang[key] || DICT.RU?.[key] || key;
+  }
+
+  // tr() with {placeholder} substitution, e.g. trf('hintReady', {amount:'25 сом'}).
+  function trf(key, vars) {
+    let s = tr(key);
+    Object.keys(vars || {}).forEach(k => { s = s.split(`{${k}}`).join(vars[k]); });
+    return s;
+  }
+
+  // The hint bar remembers WHAT it is currently showing (a key + its
+  // variables, not the resolved text), so a language switch can instantly
+  // re-render whatever is on screen right now instead of waiting for the
+  // next natural game-flow event (throw, new round, etc.) to overwrite it.
+  let lastHintKey = null, lastHintVars = null;
+  let lastStatusKey = null, lastStatusVars = null;
+  let statusActive = false;
+
+  function setHint(key, vars) {
+    lastHintKey = key;
+    lastHintVars = vars || null;
+    if (ui.hint) ui.hint.textContent = trf(key, vars);
+  }
+
+  function refreshHintLanguage() {
+    if (!ui.hint) return;
+    if (statusActive && lastStatusKey) ui.hint.textContent = trf(lastStatusKey, lastStatusVars);
+    else if (lastHintKey) ui.hint.textContent = trf(lastHintKey, lastHintVars);
+  }
+
+  function formatMoney(value) {
+    if (value == null || !Number.isFinite(Number(value))) return '—';
+    return Number(value).toLocaleString('ru-RU');
+  }
+
+  function applyTranslations() {
+    document.documentElement.lang = { RU:'ru', KG:'ky', EN:'en', ZH:'zh' }[gameState.language] || 'ru';
+    document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
+    renderModeSwitch();
+    renderLangSwitch();
+    renderAudioControls();
+    renderTicketNumber();
+    renderPayoutGrid();
+    refreshHintLanguage();
+    renderState();
+  }
+
+  // DEBUG ONLY - see the lang-switch markup comment in index.html.
+  function renderLangSwitch() {
+    ui.langSwitch?.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === gameState.language);
+    });
+  }
+
+  // --- Audio (ported from CHUKO v20.61) -------------------------------
+  function saveAudioSettings() {
+    try {
+      localStorage.setItem('x2-chuko-sound', audioSettings.soundEnabled ? '1' : '0');
+      localStorage.setItem('x2-chuko-music', audioSettings.musicEnabled ? '1' : '0');
+    } catch (_) {}
+  }
+
+  function ensureAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return Promise.resolve(null);
+    if (!audioRuntime.ctx) {
+      const ctx = new AudioCtx();
+      const master = ctx.createGain();
+      const sfxGain = ctx.createGain();
+      const musicGain = ctx.createGain();
+      master.gain.value = 1;
+      sfxGain.gain.value = audioSettings.soundEnabled ? audioSettings.soundVolume : 0;
+      musicGain.gain.value = audioSettings.musicEnabled ? audioSettings.musicVolume : 0;
+      sfxGain.connect(master); musicGain.connect(master); master.connect(ctx.destination);
+      audioRuntime.ctx = ctx; audioRuntime.master = master; audioRuntime.sfxGain = sfxGain; audioRuntime.musicGain = musicGain;
+    }
+    const ctx = audioRuntime.ctx;
+    const resume = ctx.state === 'suspended' ? ctx.resume().catch(() => {}) : Promise.resolve();
+    return resume.then(() => ctx);
+  }
+
+  function unlockAudio() {
+    ensureAudioContext().then(() => { if (audioSettings.musicEnabled) startMusicLoop(false); });
+  }
+
+  function updateAudioGains() {
+    if (!audioRuntime.ctx) return;
+    const now = audioRuntime.ctx.currentTime;
+    audioRuntime.sfxGain?.gain.setTargetAtTime(audioSettings.soundEnabled ? audioSettings.soundVolume : 0, now, .025);
+    audioRuntime.musicGain?.gain.setTargetAtTime(audioSettings.musicEnabled ? audioSettings.musicVolume : 0, now, .05);
+    if (audioRuntime.musicElement) audioRuntime.musicElement.volume = audioSettings.musicEnabled ? audioSettings.musicVolume : 0;
+  }
+
+  function renderAudioControls() {
+    if (ui.sound) {
+      ui.sound.classList.toggle('on', audioSettings.soundEnabled);
+      ui.sound.textContent = audioSettings.soundEnabled ? '🔊' : '🔇';
+      ui.sound.title = tr('sound');
+      ui.sound.setAttribute('aria-pressed', audioSettings.soundEnabled ? 'true' : 'false');
+    }
+    if (ui.music) {
+      ui.music.classList.toggle('on', audioSettings.musicEnabled);
+      ui.music.textContent = audioSettings.musicEnabled ? '♫' : '♫×';
+      ui.music.title = tr('music');
+      ui.music.setAttribute('aria-pressed', audioSettings.musicEnabled ? 'true' : 'false');
+    }
+  }
+
+  function toggleSound() {
+    audioSettings.soundEnabled = !audioSettings.soundEnabled;
+    saveAudioSettings();
+    ensureAudioContext().then(() => { updateAudioGains(); if (audioSettings.soundEnabled) playUiTone(); });
+    renderAudioControls();
+  }
+
+  function toggleMusic() {
+    audioSettings.musicEnabled = !audioSettings.musicEnabled;
+    saveAudioSettings();
+    ensureAudioContext().then(() => {
+      updateAudioGains();
+      if (audioSettings.musicEnabled) startMusicLoop(true); else stopMusicLoop();
+    });
+    renderAudioControls();
+  }
+
+  function playEffectFile(kind, volumeScale = 1) {
+    if (!audioSettings.soundEnabled) return;
+    const src = soundFiles[kind];
+    if (!src) return;
+    const audio = new Audio(src);
+    audio.preload = 'auto';
+    audio.volume = Math.max(0, Math.min(1, effectFileVolume * volumeScale));
+    const p = audio.play();
+    if (p?.catch) p.catch(() => {});
+  }
+
+  function tone({ frequency = 440, endFrequency = null, duration = .08, gain = .10, type = 'sine', delay = 0 } = {}) {
+    const ctx = audioRuntime.ctx;
+    if (!ctx || ctx.state !== 'running' || !audioRuntime.sfxGain) return;
+    const start = ctx.currentTime + Math.max(0, delay);
+    const end = start + Math.max(.02, duration);
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(Math.max(20, frequency), start);
+    if (Number.isFinite(endFrequency)) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), end);
+    amp.gain.setValueAtTime(.0001, start);
+    amp.gain.exponentialRampToValueAtTime(Math.max(.0002, gain), start + Math.min(.018, duration * .25));
+    amp.gain.exponentialRampToValueAtTime(.0001, end);
+    osc.connect(amp); amp.connect(audioRuntime.sfxGain);
+    osc.start(start); osc.stop(end + .02);
+  }
+
+  function playUiTone() {
+    if (!audioSettings.soundEnabled) return;
+    ensureAudioContext().then(() => tone({ frequency: 640, endFrequency: 760, duration: .055, gain: .055, type: 'sine' }));
+  }
+
+  function playResultTone(win) {
+    if (!audioSettings.soundEnabled) return;
+    ensureAudioContext().then(() => {
+      if (Number(win) > 0) {
+        tone({ frequency: 523, duration: .12, gain: .07, type: 'sine' });
+        tone({ frequency: 659, duration: .14, gain: .07, type: 'sine', delay: .11 });
+        tone({ frequency: 784, duration: .18, gain: .08, type: 'sine', delay: .22 });
+      } else {
+        tone({ frequency: 230, endFrequency: 175, duration: .22, gain: .055, type: 'triangle' });
+      }
+    });
+  }
+
+  function chooseRandomVoiceTag() {
+    if (!voiceTags.length) return -1;
+    if (voiceTags.length === 1) return 0;
+    let next = audioRuntime.voiceTagIndex;
+    while (next === audioRuntime.voiceTagIndex) next = Math.floor(Math.random() * voiceTags.length);
+    return next;
+  }
+
+  function clearVoiceTimer() {
+    if (audioRuntime.voiceTimer) { clearTimeout(audioRuntime.voiceTimer); audioRuntime.voiceTimer = null; }
+  }
+
+  function restoreMusicAfterVoice() {
+    if (audioRuntime.musicElement) audioRuntime.musicElement.volume = audioSettings.musicEnabled ? audioSettings.musicVolume : 0;
+  }
+
+  function playVoiceTag() {
+    if (!audioSettings.musicEnabled || !voiceTags.length) return;
+    const index = chooseRandomVoiceTag();
+    if (index < 0) return;
+    if (audioRuntime.voiceElement) { audioRuntime.voiceElement.pause(); audioRuntime.voiceElement = null; }
+    const voice = new Audio(voiceTags[index]);
+    voice.preload = 'auto';
+    voice.volume = voiceSettings.volume;
+    if (audioRuntime.musicElement) audioRuntime.musicElement.volume = audioSettings.musicVolume * voiceSettings.duckFactor;
+    const onEnd = () => { restoreMusicAfterVoice(); audioRuntime.voiceElement = null; if (audioSettings.musicEnabled) scheduleVoiceTag(); };
+    voice.addEventListener('ended', onEnd, { once: true });
+    voice.addEventListener('error', onEnd, { once: true });
+    audioRuntime.voiceElement = voice;
+    audioRuntime.voiceTagIndex = index;
+    const promise = voice.play();
+    if (promise?.catch) promise.catch(onEnd);
+  }
+
+  function scheduleVoiceTag() {
+    clearVoiceTimer();
+    if (!audioSettings.musicEnabled || !voiceTags.length) return;
+    const min = Math.min(voiceSettings.minDelayMs, voiceSettings.maxDelayMs);
+    const max = Math.max(voiceSettings.minDelayMs, voiceSettings.maxDelayMs);
+    const delay = min + Math.random() * (max - min);
+    audioRuntime.voiceTimer = setTimeout(() => { audioRuntime.voiceTimer = null; playVoiceTag(); }, delay);
+  }
+
+  function chooseRandomMusicTrack() {
+    if (!musicTracks.length) return -1;
+    if (musicTracks.length === 1) return 0;
+    let next = audioRuntime.musicTrackIndex;
+    while (next === audioRuntime.musicTrackIndex) next = Math.floor(Math.random() * musicTracks.length);
+    return next;
+  }
+
+  function playMusicTrack(index) {
+    if (!audioSettings.musicEnabled || !musicTracks.length) return;
+    const safeIndex = Number.isInteger(index) && index >= 0 && index < musicTracks.length ? index : chooseRandomMusicTrack();
+    if (safeIndex < 0) return;
+    if (audioRuntime.musicElement) { audioRuntime.musicElement.pause(); audioRuntime.musicElement.removeAttribute('src'); audioRuntime.musicElement.load(); }
+    const audio = new Audio(musicTracks[safeIndex]);
+    audio.preload = 'auto';
+    audio.volume = audioSettings.musicVolume;
+    audio.addEventListener('ended', () => { if (audioSettings.musicEnabled) playMusicTrack(chooseRandomMusicTrack()); }, { once: true });
+    audio.addEventListener('error', () => {
+      if (!audioSettings.musicEnabled) return;
+      const next = chooseRandomMusicTrack();
+      if (next >= 0 && next !== safeIndex) setTimeout(() => playMusicTrack(next), 350);
+    }, { once: true });
+    audioRuntime.musicElement = audio;
+    audioRuntime.musicTrackIndex = safeIndex;
+    const promise = audio.play();
+    if (promise?.catch) promise.catch(() => {});
+  }
+
+  function startMusicLoop(forceNew = false) {
+    if (!audioSettings.musicEnabled || !musicTracks.length) return;
+    if (!forceNew && audioRuntime.musicElement && !audioRuntime.musicElement.paused) return;
+    playMusicTrack(chooseRandomMusicTrack());
+    scheduleVoiceTag();
+  }
+
+  function stopMusicLoop() {
+    clearVoiceTimer();
+    if (audioRuntime.voiceElement) { audioRuntime.voiceElement.pause(); audioRuntime.voiceElement.currentTime = 0; audioRuntime.voiceElement = null; }
+    if (audioRuntime.musicElement) { audioRuntime.musicElement.pause(); audioRuntime.musicElement.currentTime = 0; audioRuntime.musicElement = null; }
+  }
+
+  function syncAudioWithState() {
+    if (audioRuntime.lastPhase === gameState.phase) return;
+    const previous = audioRuntime.lastPhase;
+    audioRuntime.lastPhase = gameState.phase;
+    if (gameState.phase === 'settled' && previous === 'throwing') playResultTone(gameState.ticket?.win || 0);
+  }
+
+  // --- Local recent-ticket history (convenience cache only) -----------
+  function localTicketHistoryLimit() {
+    const raw = Number(LMS_CFG.localTicketHistoryLimit ?? 5);
+    return Math.max(1, Math.min(50, Number.isFinite(raw) ? Math.floor(raw) : 5));
+  }
+
+  function localTicketHistoryKey(mode = gameState.mode) {
+    const normalizedMode = String(mode).toLowerCase() === 'demo' ? 'demo' : 'real';
+    return `x2-chuko-ticket-history:${LMS_CFG.gameId || 'CHUKO'}:${normalizedMode}`;
+  }
+
+  function readLocalTicketHistory(mode = gameState.mode) {
+    try {
+      const raw = localStorage.getItem(localTicketHistoryKey(mode));
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(item => item && item.ticketId != null && item.ticketId !== '' && Number.isFinite(Number(item.win)))
+        .slice(0, localTicketHistoryLimit());
+    } catch (_) { return []; }
+  }
+
+  function saveCompletedTicketLocally(completedTicket, mode = gameState.mode) {
+    if (!completedTicket || completedTicket.ticketId == null || completedTicket.ticketId === '') return;
+    const item = { ticketId: String(completedTicket.ticketId), win: Number(completedTicket.win || 0) };
+    const current = readLocalTicketHistory(mode).filter(row => String(row.ticketId) !== item.ticketId);
+    current.unshift(item);
+    try { localStorage.setItem(localTicketHistoryKey(mode), JSON.stringify(current.slice(0, localTicketHistoryLimit()))); } catch (_) {}
+  }
+
+  function renderLocalTicketHistory() {
+    if (!ui.ticketsList) return;
+    const rows = readLocalTicketHistory(gameState.mode);
+    ui.ticketsList.innerHTML = '';
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'tickets-empty';
+      empty.textContent = tr('noRecentTickets');
+      ui.ticketsList.appendChild(empty);
+      return;
+    }
+    rows.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'ticket-history-row';
+      const id = document.createElement('div');
+      id.className = 'ticket-history-id';
+      id.textContent = `№ ${item.ticketId}`;
+      id.title = `${tr('ticket')} № ${item.ticketId}`;
+      const win = document.createElement('div');
+      win.className = 'ticket-history-win';
+      win.textContent = formatMoney(item.win);
+      row.append(id, win);
+      ui.ticketsList.appendChild(row);
+    });
+  }
+
+  function renderTicketNumber() {
+    if (!ui.ticketNumber) return;
+    let value = '—';
+    if (gameState.phase === 'requesting') value = '…';
+    else if (gameState.ticket?.ticketId != null && gameState.ticket.ticketId !== '') value = String(gameState.ticket.ticketId);
+    ui.ticketNumber.textContent = `№ ${value}`;
+    ui.ticketNumber.title = value === '—' || value === '…' ? tr('ticket') : `${tr('ticket')} № ${value}`;
+  }
+
+  // --- Denomination select (dropdown, left of the action button) -------
+  function renderDenominationButtons() {
+    if (!ui.denomSelect) return;
+    const enabled = ['idle', 'settled'].includes(gameState.phase) && !gameState.busy && !autoPlay.active;
+    const values = [...new Set((gameState.denominations || []).map(Number).filter(v => Number.isFinite(v) && v > 0))];
+    const current = String(gameState.denomination);
+
+    // Rebuild only when the set of values actually changed - avoids
+    // resetting the native picker's open state on every render() call.
+    const existing = [...ui.denomSelect.options].map(o => o.value);
+    if (existing.join(',') !== values.map(String).join(',')) {
+      ui.denomSelect.innerHTML = '';
+      values.forEach(value => {
+        const opt = document.createElement('option');
+        opt.value = String(value);
+        opt.textContent = formatMoney(value);
+        ui.denomSelect.appendChild(opt);
+      });
+    }
+    ui.denomSelect.value = current;
+    ui.denomSelect.disabled = !enabled;
+  }
+
+  function renderModeSwitch() {
+    if (!ui.modeSwitch) return;
+    ui.modeSwitch.classList.toggle('hidden', !gameState.demoAllowed);
+    ui.modeSwitch.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === gameState.mode);
+      b.textContent = b.dataset.mode === 'demo' ? tr('demo') : tr('real');
+      b.disabled = !['idle', 'settled'].includes(gameState.phase) || autoPlay.active;
+    });
+  }
+
+  // Periodic "try REAL money" nudge: pulses the REAL button every 1-2
+  // completed rounds while playing in demo mode, so the option stays
+  // noticeable without turning into a constant distraction. The threshold
+  // is re-rolled (1 or 2) after every pulse for a less mechanical feel.
+  let demoNudgeCounter = 0;
+  let demoNudgeThreshold = 1 + Math.round(Math.random());
+  function maybeNudgeDemoBadge() {
+    if (gameState.mode !== 'demo') { demoNudgeCounter = 0; return; }
+    demoNudgeCounter += 1;
+    if (demoNudgeCounter < demoNudgeThreshold) return;
+    demoNudgeCounter = 0;
+    demoNudgeThreshold = 1 + Math.round(Math.random());
+    const btn = ui.modeSwitch?.querySelector('button[data-mode="real"]');
+    if (!btn) return;
+    btn.classList.remove('real-nudge');
+    void btn.offsetWidth; // restart the animation even if it's still mid-way
+    btn.classList.add('real-nudge');
+  }
+
+  function renderScore() {
+    const physical = computePhysicalResult();
+    if (ui.knocked) ui.knocked.textContent = String(physical.out || 0);
+    const scoreWin = (gameState.ticket && gameState.phase === 'settled') ? Number(gameState.ticket.win || 0) : 0;
+    if (ui.scoreWin) ui.scoreWin.textContent = formatMoney(scoreWin);
+    if (ui.khan) {
+      if (physical.khanOut) {
+        const item = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);
+        ui.khan.textContent = `×${Number(item?.demoMultiplier || gameState.ticket?.multiplier || 0)}`;
+      } else if (gameState.phase === 'settled') ui.khan.textContent = tr('stood');
+      else ui.khan.textContent = '—';
+    }
+  }
+
+  function renderPayoutGrid() {
+    if (!ui.payoutGrid || !ScenarioCfg) return;
+    ui.payoutGrid.innerHTML = '';
+    (ScenarioCfg.ids || []).forEach(id => {
+      const item = ScenarioCfg.get(id);
+      if (!item) return;
+      const row = document.createElement('div');
+      row.className = 'payout-item' + (item.khan ? ' payout-khan' : '');
+      const label = document.createElement('span');
+      if (item.khan) label.textContent = `ХАН · ${item.khanThrow}-й бросок`;
+      else if (item.regularMode === 'range') label.textContent = `${item.regularMin}–${item.regularMax} чүкө`;
+      else label.textContent = `${item.regular} чүкө`;
+      const value = document.createElement('strong');
+      value.textContent = `×${item.demoMultiplier}`;
+      row.append(label, value);
+      ui.payoutGrid.appendChild(row);
+    });
+  }
+
+  // --- Autoplay (ported from CHUKO v20.61) -----------------------------
+  function configuredAutoPlayCounts() {
+    return [...new Set((Array.isArray(LMS_CFG.autoPlayCounts) ? LMS_CFG.autoPlayCounts : [5, 10, 20, 50])
+      .map(Number).filter(n => Number.isInteger(n) && n > 0))];
+  }
+
+  function clearAutoTimers() {
+    if (autoPlay.nextTimer) { clearTimeout(autoPlay.nextTimer); autoPlay.nextTimer = null; }
+    if (autoPlay.throwTimer) { clearTimeout(autoPlay.throwTimer); autoPlay.throwTimer = null; }
+  }
+
+  function closeAutoMenu() {
+    ui.autoMenu?.classList.remove('open');
+    ui.autoMenu?.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderAutoPlayMenu() {
+    if (!ui.autoCounts) return;
+    ui.autoCounts.innerHTML = '';
+    configuredAutoPlayCounts().forEach(count => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'autoplay-count';
+      b.textContent = String(count);
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        autoPlay.selected = count;
+        closeAutoMenu();
+        renderAutoPlayButton();
+      });
+      ui.autoCounts.appendChild(b);
+    });
+    if (ui.autoMenuTitle) ui.autoMenuTitle.textContent = tr('autoGames');
+  }
+
+  function renderAutoPlayButton() {
+    if (!ui.autoPlay) return;
+    const available = ['idle', 'settled'].includes(gameState.phase) && !gameState.busy;
+    ui.autoPlay.classList.toggle('active', autoPlay.active);
+    if (autoPlay.active) {
+      const current = Math.min(autoPlay.total, autoPlay.completed + 1);
+      ui.autoPlay.textContent = autoPlay.stopRequested ? tr('autoStopping') : `${tr('autoStop')} ${current}/${autoPlay.total}`;
+      ui.autoPlay.disabled = autoPlay.stopRequested;
+      return;
+    }
+    if (Number.isInteger(autoPlay.selected) && autoPlay.selected > 0) {
+      ui.autoPlay.textContent = `${tr('autoStart')} ${autoPlay.selected}`;
+      ui.autoPlay.disabled = !available;
+      return;
+    }
+    ui.autoPlay.textContent = tr('autoPlay');
+    ui.autoPlay.disabled = !available;
+  }
+
+  function finishAutoPlay() {
+    clearAutoTimers();
+    autoPlay.active = false;
+    autoPlay.stopRequested = false;
+    autoPlay.selected = null;
+    autoPlay.total = 0;
+    autoPlay.completed = 0;
+    autoPlay.remaining = 0;
+    autoPlay.fixedStake = null;
+    closeAutoMenu();
+    renderState();
+  }
+
+  function requestAutoStop() {
+    if (!autoPlay.active) return;
+    autoPlay.stopRequested = true;
+    closeAutoMenu();
+    if (['idle', 'settled'].includes(gameState.phase)) { finishAutoPlay(); return; }
+    renderAutoPlayButton();
+  }
+
+  function scheduleAutoThrow() {
+    if (!autoPlay.active || gameState.phase !== 'ready') return;
+    if (autoPlay.throwTimer) clearTimeout(autoPlay.throwTimer);
+    const delay = Math.max(0, Number(LMS_CFG.autoPlayThrowDelayMs ?? 450));
+    autoPlay.throwTimer = setTimeout(() => {
+      autoPlay.throwTimer = null;
+      if (autoPlay.active && gameState.phase === 'ready') throwSaka();
+    }, delay);
+  }
+
+  function celebrationHoldMs() {
+    const zeroHold = Math.max(0, Number(LMS_CFG.autoPlayNextRoundDelayMs ?? 900));
+    if (!gameState.ticket || Number(gameState.ticket.win || 0) <= 0) return zeroHold;
+    // Confetti lifetime (see launchConfetti()) plus its max stagger delay.
+    const khan = !!computePhysicalResult().khanOut;
+    const confettiDelay = khan ? 480 : 280;
+    const confettiMs = 2600 + confettiDelay;
+    return confettiMs + 180;
+  }
+
+  function scheduleNextAutoRound() {
+    if (!autoPlay.active || autoPlay.stopRequested || autoPlay.remaining <= 0) { finishAutoPlay(); return; }
+    if (autoPlay.nextTimer) clearTimeout(autoPlay.nextTimer);
+    const delay = celebrationHoldMs();
+    autoPlay.nextTimer = setTimeout(() => {
+      autoPlay.nextTimer = null;
+      if (!autoPlay.active || autoPlay.stopRequested) { finishAutoPlay(); return; }
+      if (['idle', 'settled'].includes(gameState.phase)) requestNewGame();
+    }, delay);
+  }
+
+  function handleAutoRoundComplete() {
+    if (!autoPlay.active) return;
+    autoPlay.completed += 1;
+    autoPlay.remaining = Math.max(0, autoPlay.total - autoPlay.completed);
+    if (autoPlay.stopRequested || autoPlay.remaining <= 0) { finishAutoPlay(); return; }
+    renderAutoPlayButton();
+    scheduleNextAutoRound();
+  }
+
+  function startAutoPlay(count) {
+    const total = Number(count);
+    if (autoPlay.active || !['idle', 'settled'].includes(gameState.phase) || !configuredAutoPlayCounts().includes(total)) return;
+    clearAutoTimers();
+    closeAutoMenu();
+    autoPlay.active = true;
+    autoPlay.stopRequested = false;
+    autoPlay.selected = null;
+    autoPlay.total = total;
+    autoPlay.completed = 0;
+    autoPlay.remaining = total;
+    autoPlay.fixedStake = Number(gameState.denomination);
+    renderState();
+    autoPlay.nextTimer = setTimeout(() => {
+      autoPlay.nextTimer = null;
+      if (autoPlay.active && ['idle', 'settled'].includes(gameState.phase)) requestNewGame();
+    }, 120);
+  }
+
+  // --- Celebration: DOM confetti (no PixiJS in the 3D build) -----------
+  function isMobileEffectsDevice() {
+    const ua = navigator.userAgent || '';
+    const isiOS = /iPhone|iPad|iPod/i.test(ua);
+    const narrow = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) < 700;
+    return isiOS || narrow;
+  }
+
+  function clearCelebration() {
+    if (ui.celebration) ui.celebration.innerHTML = '';
+  }
+
+  function launchConfetti({ khan = false } = {}) {
+    if (!ui.celebration) return;
+    const requested = khan ? 54 : 22;
+    const mobile = isMobileEffectsDevice();
+    const count = mobile ? Math.min(34, Math.max(8, Math.round(requested * 0.6))) : requested;
+    const palette = khan
+      ? ['#ffd45d', '#dbe63c', '#ffffff', '#ff9f3f', '#5fb4ff', '#f26cff']
+      : ['#dbe63c', '#ffffff', '#5fb4ff', '#ffd45d'];
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      const size = 4 + Math.random() * 6;
+      const height = size * (1.25 + Math.random() * 0.7);
+      const left = Math.random() * 100;
+      const dx = (Math.random() - 0.5) * 150;
+      const dur = 1600 + Math.random() * 1000;
+      const delay = Math.random() * (khan ? 480 : 280);
+      const rot = 480 + Math.random() * 480;
+      const flip = 360 + Math.random() * 360;
+      piece.style.background = palette[i % palette.length];
+      piece.style.setProperty('--w', `${size}px`);
+      piece.style.setProperty('--h', `${height}px`);
+      piece.style.setProperty('--left', `${left}%`);
+      piece.style.setProperty('--dx', `${dx}px`);
+      piece.style.setProperty('--dur', `${dur}ms`);
+      piece.style.setProperty('--delay', `${delay}ms`);
+      piece.style.setProperty('--rot', `${rot}deg`);
+      piece.style.setProperty('--flip', `${flip}deg`);
+      frag.appendChild(piece);
+    }
+    ui.celebration.appendChild(frag);
+  }
+
+  function launchCelebration({ khan = false } = {}) {
+    clearCelebration();
+    launchConfetti({ khan });
+  }
+
+  function showResultToast() {
+    if (!gameState.ticket || !ui.toast) return;
+    const win = Number(gameState.ticket.win || 0);
+    ui.toast.classList.remove('zero', 'khan-win', 'show');
+    if (win <= 0) return; // no popup at all when there's nothing to celebrate
+    const khanOut = !!computePhysicalResult().khanOut;
+    ui.toast.textContent = formatMoney(win);
+    if (khanOut) { ui.toast.classList.add('khan-win'); launchCelebration({ khan: true }); }
+    else launchCelebration({ khan: false });
+    void ui.toast.offsetWidth;
+    ui.toast.classList.add('show');
+    playEffectFile('win', 0.78);
+    // Floats out and fades on its own (see @keyframes resultNumberFloat) -
+    // this just cleans up the class afterward instead of leaving it stuck
+    // on-screen until the next round starts.
+    ui.toast.addEventListener('animationend', () => ui.toast.classList.remove('show'), { once: true });
+  }
+
+  function hideGameResult() {
+    gameState.resultShown = false;
+    if (ui.toast) ui.toast.classList.remove('show', 'zero', 'khan-win');
+    clearCelebration();
+  }
+
+  let statusClearTimer = null;
+  function showStatus(key, vars) {
+    if (!ui.hint) return;
+    window.clearTimeout(statusClearTimer);
+    if (!key) { statusActive = false; ui.hint.classList.remove('hint-status'); return; }
+    lastStatusKey = key; lastStatusVars = vars || null; statusActive = true;
+    ui.hint.textContent = trf(key, vars);
+    ui.hint.classList.add('hint-status');
+    statusClearTimer = window.setTimeout(() => { statusActive = false; ui.hint.classList.remove('hint-status'); }, 4000);
+  }
+
+  function worldPointForWhiteMetric(angle, targetMetric, y=0.11) {
+    // The angle passed in is always measured around scatterPivot (the
+    // white ring's true on-screen centre, see updateScatterPivot()), not
+    // around the world origin and not around the tuned pile position -
+    // either mismatch silently skews every placement toward whichever
+    // direction reduces the offset between the two points.
+    const pileX = scatterPivot.x;
+    const pileZ = scatterPivot.z;
+    let lo = 0.06;
+    let hi = 3.20;
+    let best = new BABYLON.Vector3(pileX + Math.cos(angle)*1.5, y, pileZ + Math.sin(angle)*1.5);
+    let bestDiff = Number.POSITIVE_INFINITY;
+
+    for (let i=0;i<28;i++) {
+      const r = (lo+hi)*0.5;
+      const probe = new BABYLON.Vector3(pileX + Math.cos(angle)*r, y, pileZ + Math.sin(angle)*r);
+      const metric = whiteRingMetricForWorld(probe);
+      if (metric == null || !Number.isFinite(metric)) break;
+      const diff = Math.abs(metric-targetMetric);
+      if (diff < bestDiff) { bestDiff = diff; best = probe; }
+      if (metric < targetMetric) lo = r;
+      else hi = r;
+    }
+    return best;
+  }
+
+
+  function greenRingCssGeometry() {
+    const el = ui.fieldPhoto || document.querySelector('.field-photo');
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      cx: rect.left + rect.width * Number(C.game?.greenRingCx || 0.5075),
+      cy: rect.top + rect.height * Number(C.game?.greenRingCy || 0.4692),
+      rx: rect.width * Number(C.game?.greenRingRx || 0.4140),
+      ry: rect.height * Number(C.game?.greenRingRy || 0.2945)
+    };
+  }
+
+  function ellipseMetricForWorld(position, ring) {
+    const p = projectWorldToCss(position);
+    if (!p || !ring || ring.rx <= 1 || ring.ry <= 1) return null;
+    return Math.hypot((p.x-ring.cx)/ring.rx, (p.y-ring.cy)/ring.ry);
+  }
+
+  function greenRingMetricForWorld(position) {
+    return ellipseMetricForWorld(position, greenRingCssGeometry());
+  }
+
+  function worldPointForGreenMetric(angle, targetMetric, y=0.11) {
+    const pileX = scatterPivot.x;
+    const pileZ = scatterPivot.z;
+    let lo = 0.06;
+    let hi = 4.20;
+    let best = new BABYLON.Vector3(pileX + Math.cos(angle)*2.4, y, pileZ + Math.sin(angle)*2.4);
+    let bestDiff = Number.POSITIVE_INFINITY;
+    for (let i=0;i<32;i++) {
+      const r=(lo+hi)*0.5;
+      const probe=new BABYLON.Vector3(pileX+Math.cos(angle)*r,y,pileZ+Math.sin(angle)*r);
+      const metric=greenRingMetricForWorld(probe);
+      if (metric==null || !Number.isFinite(metric)) break;
+      const diff=Math.abs(metric-targetMetric);
+      if (diff<bestDiff) { bestDiff=diff; best=probe; }
+      if (metric<targetMetric) lo=r; else hi=r;
+    }
+    return best;
+  }
+
+  function pieceFootprintRadiusWorld(item, isKhan=false) {
+    if (isKhan || item === roundPool.khan) {
+      const model = Number(C.glb?.khanTargetMax || 0.54) * Number(tuning.khanModelScale || 1);
+      const proxy = Math.max(Number(C.pieces?.khan?.width || 0.43), Number(C.pieces?.khan?.depth || 0.66));
+      return Math.max(model,proxy) * 0.54;
+    }
+    const scale = pilePieceScale();
+    const model = Number(C.glb?.chukoTargetMax || 0.53) * Number(tuning.chukoModelScale || 1) * scale;
+    const proxy = Math.max(Number(C.pieces?.chuko?.width || 0.39), Number(C.pieces?.chuko?.depth || 0.60)) * scale;
+    return Math.max(model,proxy) * 0.58;
+  }
+
+  function footprintMetricsAtPosition(item, position, ringFn, isKhan=false) {
+    if (!position) return null;
+    const radius = pieceFootprintRadiusWorld(item,isKhan);
+    const metrics=[];
+    const centre=ringFn(position);
+    if (centre!=null && Number.isFinite(centre)) metrics.push(centre);
+    for (let i=0;i<12;i++) {
+      const a=i/12*Math.PI*2;
+      const probe=new BABYLON.Vector3(
+        position.x+Math.cos(a)*radius,
+        position.y,
+        position.z+Math.sin(a)*radius
+      );
+      const m=ringFn(probe);
+      if (m!=null && Number.isFinite(m)) metrics.push(m);
+    }
+    if (!metrics.length) return null;
+    return { min:Math.min(...metrics), max:Math.max(...metrics), centre:centre };
+  }
+
+  function targetFullyOutsideGreen(item, position, isKhan=false) {
+    const m=footprintMetricsAtPosition(item,position,greenRingMetricForWorld,isKhan);
+    return !!m && m.min >= Number(C.game?.greenOutsideMinMetric || 1.045);
+  }
+
+  function targetAcceptablyInsideWhite(item, position, isKhan=false) {
+    const m=footprintMetricsAtPosition(item,position,whiteRingMetricForWorld,isKhan);
+    return !!m && m.max <= Number(C.game?.whiteInsideMaxFootprintMetric || 1.10);
+  }
+
+  function footprintInsideSafeScreen(item, position, isKhan=false) {
+    if (!position || !ui.canvas) return false;
+    const rect=ui.canvas.getBoundingClientRect();
+    const mx=Number(C.game?.landingScreenMarginX || 0.055);
+    const mt=Number(C.game?.landingScreenMarginTop || 0.065);
+    const mb=Number(C.game?.landingScreenMarginBottom || 0.120);
+    const safe={left:rect.left+rect.width*mx,right:rect.right-rect.width*mx,top:rect.top+rect.height*mt,bottom:rect.bottom-rect.height*mb};
+    const radius=pieceFootprintRadiusWorld(item,isKhan);
+    const probes=[position];
+    for (let i=0;i<12;i++) {
+      const a=i/12*Math.PI*2;
+      probes.push(new BABYLON.Vector3(position.x+Math.cos(a)*radius,position.y,position.z+Math.sin(a)*radius));
+    }
+    return probes.every(probe=>{
+      const css=projectWorldToCss(probe);
+      return !!css && css.x>=safe.left && css.x<=safe.right && css.y>=safe.top && css.y<=safe.bottom;
+    });
+  }
+
+  function chooseValidatedOutsideGreenPoint(item, isKhan, baseAngle, y, usedPoints, minSep, rng) {
+    const minMetric=Number(C.game?.greenOutsideMinMetric || 1.045);
+    const maxMetric=Math.max(minMetric+0.05,Number(C.game?.greenOutsideMaxMetric || 1.24));
+    let best=null;
+    let bestScore=-Infinity;
+    for (let attempt=0;attempt<80;attempt++) {
+      const spread=(attempt<20?0.10:attempt<50?0.22:0.36);
+      const angle=baseAngle+(rng()-0.5)*spread;
+      const metric=minMetric+(maxMetric-minMetric)*(0.25+0.75*rng());
+      const p=worldPointForGreenMetric(angle,metric,y);
+      const sep=usedPoints.length?Math.min(...usedPoints.map(other=>pointDistanceXZ(p,other))):999;
+      const outside=targetFullyOutsideGreen(item,p,isKhan);
+      const onscreen=footprintInsideSafeScreen(item,p,isKhan);
+      const score=(outside?1000:0)+(onscreen?500:0)+Math.min(sep,2)*100;
+      if (score>bestScore) { bestScore=score; best=p; }
+      if (outside && onscreen && sep>=minSep) return p;
+    }
+    return best || worldPointForGreenMetric(baseAngle,maxMetric,y);
+  }
+
+  function chooseValidatedInsideWhitePoint(item, isKhan, baseAngle, metric, y, usedPoints, minSep, rng) {
+    let best=null;
+    let bestScore=-Infinity;
+    for (let attempt=0;attempt<70;attempt++) {
+      const angle=baseAngle+(rng()-0.5)*0.30;
+      const m=Math.max(0.20,Math.min(0.96,metric+(rng()-0.5)*0.08));
+      const p=worldPointForWhiteMetric(angle,m,y);
+      const sep=usedPoints.length?Math.min(...usedPoints.map(other=>pointDistanceXZ(p,other))):999;
+      const inside=targetAcceptablyInsideWhite(item,p,isKhan);
+      const onscreen=footprintInsideSafeScreen(item,p,isKhan);
+      const score=(inside?1000:0)+(onscreen?300:0)+Math.min(sep,2)*100;
+      if (score>bestScore) { bestScore=score; best=p; }
+      if (inside && onscreen && sep>=minSep) return p;
+    }
+    return best || worldPointForWhiteMetric(baseAngle,Math.min(metric,0.72),y);
+  }
+
+  function visualScenarioResult() {
+    const outIndices=[];
+    roundPool.chukos.forEach((item,index)=>{
+      if (!item?.mesh) return;
+      if (targetFullyOutsideGreen(item,item.mesh.position,false)) outIndices.push(index);
+    });
+    const khanOut=!!roundPool.khan?.mesh && targetFullyOutsideGreen(roundPool.khan,roundPool.khan.mesh.position,true);
+    const insideViolations=[];
+    roundPool.chukos.forEach((item,index)=>{
+      if (!item?.mesh || outIndices.includes(index)) return;
+      if (!targetAcceptablyInsideWhite(item,item.mesh.position,false)) insideViolations.push(index);
+    });
+    const khanInsideViolation=!!roundPool.khan?.mesh && !khanOut && !targetAcceptablyInsideWhite(roundPool.khan,roundPool.khan.mesh.position,true);
+    return { out:outIndices.length,khanOut,outIndices,insideViolations,khanInsideViolation };
+  }
+
+  function validateFinalScenarioVisual(plan=scenarioRuntime.plan) {
+    const actual = visualScenarioResult();
+    let expectedOut = Number(plan?.regular || 0);
+    let expectedKhan = Boolean(plan?.khan);
+    if (altynRound.active) {
+      const ids = new Set(altynRound.outIds);
+      scenarioRuntime.outIds.forEach(id => ids.add(id));
+      expectedOut = ids.size;
+      expectedKhan = Boolean(altynRound.khanOut || scenarioRuntime.khanOut || plan?.khan);
+    }
+    const valid = !!plan && actual.out === expectedOut && actual.khanOut === expectedKhan;
+    const result = { valid, actual, expected: { out: expectedOut, khanOut: expectedKhan } };
+    scenarioRuntime.visualValidation = result;
+    return result;
+  }
+
+  function deterministicLandingRotation(seed, index, isKhan=false) {
+    const rng = seededRng(`${seed}|rot|${index}|${isKhan?'K':'C'}`);
+    return BABYLON.Quaternion.FromEulerAngles(
+      (rng()-0.5) * 1.85,
+      rng() * Math.PI * 2,
+      (rng()-0.5) * 1.85
+    );
+  }
+
+
+  function pointDistanceXZ(a, b) {
+    return Math.hypot((a?.x || 0) - (b?.x || 0), (a?.z || 0) - (b?.z || 0));
+  }
+
+  function chooseSeparatedWhiteMetricPoint(angle, metric, y, usedPoints, minSep, rng, inside=true) {
+    let best = null;
+    let bestSep = -1;
+
+    // Try angle + metric variations around the requested slot. Outside
+    // (targeted/выбитые) points get more wiggle room than before so the
+    // separation search can actually spread them apart instead of settling
+    // for a tight, near-identical radius/angle every time.
+    for (let attempt = 0; attempt < 18; attempt++) {
+      const a = angle + (rng() - 0.5) * (inside ? 0.26 : 0.24);
+      const m = metric + (rng() - 0.5) * (inside ? 0.055 : 0.065);
+      const p = worldPointForWhiteMetric(a, m, y);
+      const sep = usedPoints.length
+        ? Math.min(...usedPoints.map(other => pointDistanceXZ(p, other)))
+        : 999;
+
+      if (sep > bestSep) {
+        best = p;
+        bestSep = sep;
+      }
+      if (sep >= minSep) return p;
+    }
+
+    return best || worldPointForWhiteMetric(angle, metric, y);
+  }
+
+  function keepWorldPointInsideScreen(point, fallbackAngle, requestedMetric, y, rng) {
+    if (!point || !ui.canvas) return point;
+    const rect = ui.canvas.getBoundingClientRect();
+    const safe = { left: rect.left + rect.width*0.055, right: rect.right - rect.width*0.055,
+                   top: rect.top + rect.height*0.070, bottom: rect.bottom - rect.height*0.120 };
+    let metric = requestedMetric;
+    let best = point;
+    for (let i=0;i<10;i++) {
+      const css = projectWorldToCss(best);
+      if (css && css.x>=safe.left && css.x<=safe.right && css.y>=safe.top && css.y<=safe.bottom) return best;
+      metric = Math.max(1.55, metric - 0.045);
+      best = worldPointForWhiteMetric(fallbackAngle + (rng()-0.5)*0.025, metric, y);
+    }
+    return best;
+  }
+
+  // The safe-rect check above is anchored to the CANVAS edges, not to the
+  // ring's actual on-screen position. Since the ring normally sits much
+  // closer to the top of the canvas than to the bottom (the bottom third of
+  // the screen is reserved for the score/action/denom UI), a piece aimed
+  // "up" hits the top margin far sooner than one aimed "down" hits the
+  // bottom margin - so upward throws were getting squashed back toward the
+  // centre while downward ones reached their full, intended spread. That
+  // reads as "the scatter leans toward the bottom half" even though the
+  // angles themselves are chosen with no such bias.
+  //
+  // Fix: sample many directions around the pivot, find the tightest
+  // (worst-case) direction's safe metric, and cap every direction to that
+  // same value. The result may sit a little more conservatively than the
+  // ideal outsideMax in every direction, but it is now symmetric - no
+  // direction is special-cased against another.
+  function computeUniformOutsideMetricCap(baseMetric, y = 0.10, samples = 16) {
+    if (!ui.canvas) return baseMetric;
+    const rect = ui.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return baseMetric;
+    const safe = { left: rect.left + rect.width*0.055, right: rect.right - rect.width*0.055,
+                   top: rect.top + rect.height*0.070, bottom: rect.bottom - rect.height*0.120 };
+    let minMetric = baseMetric;
+    for (let i=0;i<samples;i++) {
+      const angle = (i/samples) * Math.PI * 2;
+      let metric = baseMetric;
+      for (let iter=0;iter<12;iter++) {
+        const point = worldPointForWhiteMetric(angle, metric, y);
+        const css = point ? projectWorldToCss(point) : null;
+        if (css && css.x>=safe.left && css.x<=safe.right && css.y>=safe.top && css.y<=safe.bottom) break;
+        metric -= 0.04;
+        if (metric <= 1.02) { metric = 1.02; break; }
+      }
+      if (metric < minMetric) minMetric = metric;
+    }
+    return minMetric;
+  }
+
+  function outsideFanOffset(order, count, step) {
+    if (count <= 1) return 0;
+    // Alternate left/right around the impact direction:
+    // 0, +step, -step, +2step, -2step...
+    // This keeps the result connected to the impact point but prevents all
+    // winning chükö from flying into one narrow sector.
+    if (count % 2 === 1) {
+      if (order === 0) return 0;
+      const k = Math.ceil(order / 2);
+      return (order % 2 ? 1 : -1) * k * step;
+    }
+
+    const k = Math.floor(order / 2);
+    return (order % 2 ? 1 : -1) * (k + 0.5) * step;
+  }
+
+  function prepareScenarioLandingPlan(tp) {
+    if (!scenarioRuntime.active || !scenarioRuntime.plan || !roundPool.initialized) return;
+
+    const plan = scenarioRuntime.plan;
+    const count = Math.max(0, Math.min(C.pile.chukoCount, Number(plan.regular || 0)));
+    const rng = seededRng(`${scenarioRuntime.seed}|landing-plan-v2|${tp.x.toFixed(3)}|${tp.z.toFixed(3)}`);
+    const pivot = updateScatterPivot();
+    const pileX = pivot.x;
+    const pileZ = pivot.z;
+
+    // Select the actual chükö closest to the SAKA contact point BEFORE the throw.
+    const scored = roundPool.chukos.map((item,index)=>({
+      index,
+      item,
+      score: Math.hypot(
+        (item?.mesh?.position?.x || 0) - tp.x,
+        (item?.mesh?.position?.z || 0) - tp.z
+      ) + rng()*0.018
+    })).filter(v => !altynRound.outIds.has(v.index)).sort((a,b)=>a.score-b.score);
+
+    const targetIds = scored.slice(0,count).map(v=>v.index);
+    scenarioRuntime.targetIds = new Set(targetIds);
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.targetsLockedAtImpact = true;
+    scenarioRuntime.targetDirections = new Map();
+
+    const flightPlan = [];
+    const usedLandingPoints = [];
+    const insideIds = [...Array(C.pile.chukoCount).keys()]
+      .filter(i=>!scenarioRuntime.targetIds.has(i) && !altynRound.outIds.has(i));
+
+    // Scatter direction goes FROM the SAKA impact point THROUGH the pile centre
+    // and further beyond it. This matches the visual impulse of a top-down hit:
+    // hit at the bottom -> pieces travel through the centre toward the top, etc.
+    const scatterAxisAngle = Math.atan2(pileZ - tp.z, pileX - tp.x);
+
+    const insideMin = Number(C.game?.scatterInsideMetricMin || 0.38);
+    const insideMax = Number(C.game?.scatterInsideMetricMax || 0.68);
+    const insideEdgeMin = Number(C.game?.scatterInsideEdgeMetricMin || 0.70);
+    const insideEdgeMax = Number(C.game?.scatterInsideEdgeMetricMax || 0.80);
+    const outsideMin = Number(C.game?.scatterOutsideMetricMin || 1.12);
+    const outsideMax = Number(C.game?.scatterOutsideMetricMax || 1.22);
+    const minSep = Number(C.game?.scatterMinSeparationWorld || 0.56);
+    const fanStep = Number(C.game?.scatterOutsideFanStepRad || 0.68);
+    const fanJitter = Number(C.game?.scatterOutsideFanJitterRad || 0.10);
+
+    const durMin = Number(C.game?.scatterDurationMinMs || 430);
+    const durMax = Number(C.game?.scatterDurationMaxMs || 690);
+    const delayMax = Number(C.game?.scatterDelayMaxMs || 105);
+
+    // See computeUniformOutsideMetricCap() above: without this, pieces aimed
+    // toward whichever screen direction has the least safe margin (usually
+    // "up", since the bottom of the screen is reserved for UI) get clamped
+    // back much harder than pieces aimed the other way, making the scatter
+    // look biased toward one half of the circle. Capping every direction to
+    // the same worst-case-safe value keeps it visually even.
+    const outsideMetricCap = computeUniformOutsideMetricCap(outsideMax, 0.10);
+
+    // OUT points: the WHITE CHALK CIRCLE is the boundary.
+    // Place pieces clearly outside it (metric > 1), but not at the outer green edge.
+    // Angles fan widely around the actual impact direction.
+    targetIds.forEach((id,order)=>{
+      const item = roundPool.chukos[id];
+      if (!item?.mesh) return;
+
+      const offset = outsideFanOffset(order, targetIds.length, fanStep);
+      const angle = scatterAxisAngle + offset + (rng()-0.5)*fanJitter;
+      const y = 0.095 + rng()*0.020;
+
+      // OUT is defined by the outer coloured carpet, not by the white chalk ring.
+      // Generate and validate the whole projected footprint BEFORE SAKA is thrown.
+      const targetPosition = chooseValidatedOutsideGreenPoint(
+        item, false, angle, y, usedLandingPoints, minSep*1.30, rng
+      );
+      usedLandingPoints.push(targetPosition);
+
+      const distToImpact = Math.hypot(
+        item.mesh.position.x-tp.x,
+        item.mesh.position.z-tp.z
+      );
+
+      flightPlan.push({
+        item,index:id,isKhan:false,targeted:true,targetPosition,
+        targetRotation:deterministicLandingRotation(scenarioRuntime.seed,id,false),
+        delay:Math.min(delayMax,distToImpact*72 + rng()*24),
+        duration:durMin + (durMax-durMin)*(0.68+rng()*0.28),
+        arc:Number(C.game?.scatterArcOutsideMin||0.26) +
+          (Number(C.game?.scatterArcOutsideMax||0.54)-Number(C.game?.scatterArcOutsideMin||0.26))*rng()
+      });
+
+      scenarioRuntime.targetDirections.set(id,angle);
+    });
+
+    // IN points:
+    // spread around the whole white circle with a minimum separation, kept
+    // with a clear visual margin from the chalk line itself - v0.13.20 let
+    // "roughly every third" piece sit almost on the line (metric up to
+    // 0.97), which on this photo-realistic field reads as "outside" to
+    // the player even though it's still technically inside, making the
+    // score look wrong. Only an occasional piece is now allowed near the
+    // (safer, lower) edge band, and the rest stay solidly inside it.
+    insideIds.forEach((id,order)=>{
+      const item = roundPool.chukos[id];
+      if (!item?.mesh) return;
+
+      const n = Math.max(1,insideIds.length);
+      const golden = 2.399963229728653; // avoids radial rows / clusters
+      const angle = scatterAxisAngle + order*golden + (rng()-0.5)*0.18;
+
+      let metric;
+      if (order % 5 === 0) {
+        metric = insideEdgeMin + (insideEdgeMax-insideEdgeMin)*rng();
+      } else {
+        const t = (order + 0.5) / n;
+        const shaped = 0.20 + 0.55*Math.sqrt(Math.max(0,Math.min(1,t)));
+        metric = insideMin + (insideMax-insideMin)*Math.min(0.75, shaped);
+      }
+
+      const y = 0.090 + rng()*0.024;
+      const targetPosition = chooseValidatedInsideWhitePoint(
+        item, false, angle, metric, y, usedLandingPoints, minSep, rng
+      );
+      usedLandingPoints.push(targetPosition);
+
+      const distToImpact = Math.hypot(
+        item.mesh.position.x-tp.x,
+        item.mesh.position.z-tp.z
+      );
+
+      flightPlan.push({
+        item,index:id,isKhan:false,targeted:false,targetPosition,
+        targetRotation:deterministicLandingRotation(scenarioRuntime.seed,id,false),
+        delay:Math.min(delayMax,16 + distToImpact*64 + rng()*24),
+        duration:durMin + (durMax-durMin)*(0.30+rng()*0.42),
+        arc:Number(C.game?.scatterArcInsideMin||0.12) +
+          (Number(C.game?.scatterArcInsideMax||0.30)-Number(C.game?.scatterArcInsideMin||0.12))*rng()
+      });
+    });
+
+    // KHAN: inside unless FIVE_KHAN. Keep it separated from chükö too.
+    if (roundPool.khan?.mesh && (plan.khan || !altynRound.active)) {
+      const targeted = !!plan.khan;
+      const angle = targeted
+        ? scatterAxisAngle + outsideFanOffset(targetIds.length, targetIds.length+1, fanStep) + (rng()-0.5)*fanJitter
+        : scatterAxisAngle + Math.PI*0.82 + (rng()-0.5)*0.34;
+
+      const metric = targeted ? 1.0 : 0.26 + rng()*0.14;
+
+      const targetPosition = targeted
+        ? chooseValidatedOutsideGreenPoint(
+            roundPool.khan, true, angle, 0.14, usedLandingPoints, minSep*1.38, rng
+          )
+        : chooseValidatedInsideWhitePoint(
+            roundPool.khan, true, angle, metric, 0.135, usedLandingPoints, minSep*1.18, rng
+          );
+      usedLandingPoints.push(targetPosition);
+
+      flightPlan.push({
+        item:roundPool.khan,index:-1,isKhan:true,targeted,targetPosition,
+        targetRotation:deterministicLandingRotation(scenarioRuntime.seed,99,true),
+        delay:targeted ? 25+rng()*35 : 45+rng()*38,
+        duration:targeted ? durMax*0.95 : durMin*0.88,
+        arc:targeted
+          ? Number(C.game?.scatterArcOutsideMax||0.54)*0.92
+          : Number(C.game?.scatterArcInsideMin||0.12)*0.85
+      });
+    }
+
+    // Pre-flight validation: reject any plan whose final projected picture
+    // would not meet the white-IN / green-OUT rules. The point generators above
+    // already enforce this; this block makes the contract explicit and observable.
+    const preflightProblems=[];
+    flightPlan.forEach(entry=>{
+      const ok=entry.targeted
+        ? targetFullyOutsideGreen(entry.item,entry.targetPosition,entry.isKhan)
+        : targetAcceptablyInsideWhite(entry.item,entry.targetPosition,entry.isKhan);
+      if (!ok || !footprintInsideSafeScreen(entry.item,entry.targetPosition,entry.isKhan)) {
+        preflightProblems.push({index:entry.index,isKhan:entry.isKhan,targeted:entry.targeted,position:{x:entry.targetPosition.x,z:entry.targetPosition.z}});
+      }
+    });
+    if (preflightProblems.length) {
+      console.error('[CHUKO 0.13.20] landing-plan preflight validation failed',preflightProblems);
+    }
+
+    scenarioRuntime.flightPlan = flightPlan;
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+  }
+
+  function startScenarioScatter() {
+    if (!scenarioRuntime.active || !scenarioRuntime.flightPlan.length || scenarioRuntime.scatterActive || scenarioRuntime.scatterComplete) {
+      debugLog('startScenarioScatter EARLY-RETURN (this would explain a stuck SAKA!)', {
+        active: scenarioRuntime.active,
+        flightPlanLength: scenarioRuntime.flightPlan.length,
+        scatterActive: scenarioRuntime.scatterActive,
+        scatterComplete: scenarioRuntime.scatterComplete
+      });
+      return;
+    }
+    debugLog('SCATTER STARTED', { pieces: scenarioRuntime.flightPlan.length });
+    const now = performance.now();
+    scenarioRuntime.scatterStartedAt = now;
+    scenarioRuntime.scatterActive = true;
+    scenarioRuntime.impactAt = now;
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanOut = false;
+
+    scenarioRuntime.flightPlan.forEach(entry=>{
+      const item=entry.item;
+      if (!item?.mesh || !item?.aggregate?.body) return;
+      entry.startPosition=item.mesh.position.clone();
+      entry.startRotation=item.mesh.rotationQuaternion ? item.mesh.rotationQuaternion.clone() : BABYLON.Quaternion.Identity();
+      try {
+        item.aggregate.body.setLinearVelocity(BABYLON.Vector3.Zero());
+        item.aggregate.body.setAngularVelocity(BABYLON.Vector3.Zero());
+        item.aggregate.body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+        item.aggregate.body.disablePreStep=false;
+      } catch (_) {}
+    });
+  }
+
+  function updateScenarioScatterAnimation() {
+    if (!scenarioRuntime.scatterActive || !scenarioRuntime.flightPlan.length) return;
+    const elapsed = performance.now()-scenarioRuntime.scatterStartedAt;
+    let allDone=true;
+
+    scenarioRuntime.flightPlan.forEach(entry=>{
+      const item=entry.item;
+      if (!item?.mesh || !entry.startPosition) return;
+      const local=(elapsed-entry.delay)/Math.max(1,entry.duration);
+      if (local<0) { allDone=false; return; }
+      const t=Math.max(0,Math.min(1,local));
+      if (t<1) allDone=false;
+      const ease=1-Math.pow(1-t,3);
+      const start=entry.startPosition;
+      const end=entry.targetPosition;
+      item.mesh.position.x=start.x+(end.x-start.x)*ease;
+      item.mesh.position.z=start.z+(end.z-start.z)*ease;
+      item.mesh.position.y=start.y+(end.y-start.y)*ease+Math.sin(Math.PI*t)*entry.arc;
+      if (!item.mesh.rotationQuaternion) item.mesh.rotationQuaternion=BABYLON.Quaternion.Identity();
+      BABYLON.Quaternion.SlerpToRef(entry.startRotation,entry.targetRotation,ease,item.mesh.rotationQuaternion);
+      item.mesh.computeWorldMatrix(true);
+    });
+
+    if (!allDone) return;
+
+    debugLog('SCATTER ANIMATION COMPLETE (natural)', {});
+    finalizeScenarioFlightPlan();
+  }
+
+  // Snaps every piece in the precomputed flight plan straight to its final
+  // target position/rotation and marks the resulting out/khanOut state.
+  // Used both by the normal end-of-tween path above and by
+  // forceCompleteScenarioIfNeeded() when the tween never got to run at all.
+  function finalizeScenarioFlightPlan() {
+    scenarioRuntime.flightPlan.forEach(entry=>{
+      const item=entry.item;
+      if (!item?.mesh) return;
+      item.mesh.position.copyFrom(entry.targetPosition);
+      item.mesh.rotationQuaternion=entry.targetRotation.clone();
+      item.mesh.computeWorldMatrix(true);
+      if (item.aggregate?.body) {
+        try {
+          item.aggregate.body.setLinearVelocity(BABYLON.Vector3.Zero());
+          item.aggregate.body.setAngularVelocity(BABYLON.Vector3.Zero());
+          item.aggregate.body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+          item.aggregate.body.disablePreStep=true;
+        } catch (_) {}
+      }
+      if (entry.isKhan) scenarioRuntime.khanOut=!!entry.targeted;
+      else if (entry.targeted) scenarioRuntime.outIds.add(entry.index);
+    });
+
+    // SAKA also stops once the planned scatter has visibly completed. No later drift.
+    freezeItemAtCurrentPosition(roundPool.saka);
+    scenarioRuntime.scatterActive=false;
+    scenarioRuntime.scatterComplete=true;
+    roundPhysicsFrozen=true;
+    syncAllGlbVisuals();
+    validateFinalScenarioVisual(scenarioRuntime.plan);
+  }
+
+  // Safety net: the natural path to a finished scenario round is
+  // startScenarioScatter() -> updateScenarioScatterAnimation() reaching
+  // allDone. That path depends on SAKA actually entering the narrow
+  // contact-trigger window (see applyImpactBoostIfNeeded). If it doesn't -
+  // a collision deflects SAKA, a dropped frame skips the window, etc. - the
+  // round used to settle with outIds still empty while the LMS-authoritative
+  // win/balance was already fixed, producing a visible mismatch with only a
+  // console.warn to show for it. This forces the round straight to the
+  // outcome that was already committed to in prepareScenarioLandingPlan()
+  // before SAKA was even thrown, and reports the miss to the LMS so it is
+  // visible outside the browser console.
+  function forceCompleteScenarioIfNeeded() {
+    if (!scenarioRuntime.active || !scenarioRuntime.plan || scenarioRuntime.scatterComplete) return;
+    if (!scenarioRuntime.flightPlan.length) return; // nothing was planned (round never threw)
+
+    const reason = scenarioRuntime.scatterActive ? 'timeout-mid-scatter' : 'contact-not-detected';
+    console.warn(`[CHUKO 0.13.20] scenario scatter did not finish naturally (${reason}); forcing planned outcome`, {
+      ticketId: gameState.ticket?.ticketId, plan: scenarioRuntime.plan
+    });
+    debugLog('FORCED COMPLETE (contact/scatter never finished naturally)', {
+      reason,
+      sakaY: saka?.position?.y?.toFixed?.(3),
+      impactBoosted: throwState.impactBoosted,
+      scatterActive: scenarioRuntime.scatterActive
+    });
+
+    finalizeScenarioFlightPlan();
+
+    LMS?.emit?.('X2_GAME_ERROR', {
+      stage: 'scenarioScatter',
+      code: 'SCENARIO_FORCED_COMPLETE',
+      message: `Scenario scatter forced to its precomputed outcome (${reason})`,
+      ticketId: gameState.ticket?.ticketId || null
+    });
+  }
+
+  function computePhysicalResult() {
+    if (altynRound.active) {
+      const ids = new Set(altynRound.outIds);
+      scenarioRuntime.outIds.forEach(id => ids.add(id));
+      return { out: ids.size, khanOut: Boolean(altynRound.khanOut || scenarioRuntime.khanOut) };
+    }
+    if (scenarioRuntime.active && scenarioRuntime.plan && (scenarioRuntime.scatterComplete || gameState.phase === 'settled')) {
+      return { out:Number(scenarioRuntime.plan.regular || 0), khanOut:Boolean(scenarioRuntime.plan.khan) };
+    }
+    if (scenarioRuntime.active && scenarioRuntime.plan) return { out:scenarioRuntime.outIds.size, khanOut:scenarioRuntime.khanOut };
+    return {out:0,khanOut:false};
+  }
+
+  function freezeItemAtCurrentPosition(item) {
+    if (!item?.aggregate?.body) return;
+    const body = item.aggregate.body;
+    try {
+      body.setLinearVelocity(BABYLON.Vector3.Zero());
+      body.setAngularVelocity(BABYLON.Vector3.Zero());
+      body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+    } catch (_) {}
+  }
+
+  function freezeRoundPhysics() {
+    if (roundPhysicsFrozen) return;
+    roundPhysicsFrozen = true;
+    [...roundPool.chukos, roundPool.khan, roundPool.saka].filter(Boolean).forEach(freezeItemAtCurrentPosition);
+  }
+
+  function finalizeScenarioVisual() {
+    // v0.13.20: final positions were chosen BEFORE SAKA launched.
+    // If the natural scatter animation never reached completion (missed
+    // contact trigger, dropped frames, deflection off the static pile),
+    // force it straight to that precomputed outcome so the visible result
+    // always matches the LMS-authoritative scenario. Never otherwise
+    // rearrange anything after the pieces have genuinely landed.
+    forceCompleteScenarioIfNeeded();
+    freezeRoundPhysics();
+  }
+
+  function applyCurrentAltynThrowState() {
+    if (!altynRound.active) return;
+    scenarioRuntime.outIds.forEach(id => altynRound.outIds.add(id));
+    if (scenarioRuntime.khanOut) altynRound.khanOut = true;
+    altynRound.completedThrows = Math.max(altynRound.completedThrows, altynRound.throwIndex + 1);
+  }
+
+  function setAltynThrowHint() {
+    if (!ui.hint || !altynRound.active || !altynRound.plan) return;
+    const current = Math.min(altynRound.plan.throws.length, altynRound.throwIndex + 1);
+    const total = altynRound.plan.throws.length;
+    const prefix = gameState.language === 'KG' ? 'Ыргытуу' : gameState.language === 'EN' ? 'Throw' : gameState.language === 'ZH' ? '投掷' : 'Бросок';
+    ui.hint.textContent = `${prefix} ${current}/${total}`;
+  }
+
+  function resetSakaForNextAltynThrow() {
+    window.clearTimeout(resetTimer);
+    resetTimer = 0;
+    pileReleasedForThrow = false;
+    roundPhysicsFrozen = false;
+    thrown = false;
+    throwState = { active:false, targetPoint:null, guideDir:null, power:0, impactBoosted:false, flightTime:0 };
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    [...roundPool.chukos, roundPool.khan].filter(Boolean).forEach(freezeItemAtCurrentPosition);
+    saka = roundPool.saka?.mesh || saka;
+    sakaAggregate = roundPool.saka?.aggregate || sakaAggregate;
+    if (roundPool.saka) {
+      queueBodyTransformReset(
+        roundPool.saka,
+        (() => { const start = throwStartPoint(); return new BABYLON.Vector3(start.x, start.y, start.z); })(),
+        BABYLON.Quaternion.FromEulerAngles(0.18, -0.45, 0.12),
+        false
+      );
+    }
+    resetAimState();
+    hideAimVisuals();
+    if (ui.aimPower) ui.aimPower.hidden = true;
+    const defaultGeo = aimGeometry();
+    const defaultPoint = snapLandingPointToNearestChuko({ x:defaultGeo.center.x, z:defaultGeo.center.z });
+    aimState.power = 0.58;
+    aimState.guideDir = defaultGeo.toCenter;
+    aimState.targetPoint = defaultPoint;
+    gameState.phase = 'ready';
+    gameState.ticketReady = true;
+    gameState.busy = false;
+    renderState();
+    setAltynThrowHint();
+    if (autoPlay.active) scheduleAutoThrow();
+  }
+
+  function resolveCurrentAltynThrow() {
+    if (!gameState.ticket || gameState.phase !== 'throwing') return;
+    throwState.active = false;
+    finalizeScenarioVisual();
+    const visualCheck = validateFinalScenarioVisual(scenarioRuntime.plan);
+    applyCurrentAltynThrowState();
+
+    const step = currentAltynThrow();
+    LMS?.emit?.('X2_GAME_THROW_COMPLETE', {
+      gameId:LMS_CFG.gameId || 'ALTYN_KHAN',
+      ticketId:gameState.ticket.ticketId,
+      scenario:gameState.ticket.scenario,
+      throwIndex:Number(step?.index || altynRound.throwIndex + 1),
+      throwsTotal:Number(altynRound.plan?.throws?.length || 1),
+      regularOut:Number(step?.regularOut || 0),
+      regularOutTotal:altynRound.outIds.size,
+      khanOut:Boolean(step?.khanOut),
+      visualValid:Boolean(visualCheck.valid),
+      mode:gameState.mode
+    });
+
+    const isFinal = !step || step.final || step.khanOut || altynRound.throwIndex >= altynRound.plan.throws.length - 1;
+    if (isFinal) {
+      showGameResult();
+      setHint('hintResultLocked');
+      return;
+    }
+
+    altynRound.throwIndex += 1;
+    activateAltynThrow(altynRound.throwIndex);
+    resetSakaForNextAltynThrow();
+  }
+
+  function validateAltynTicketResult() {
+    const item = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);
+    const physical = { out:altynRound.outIds.size, khanOut:altynRound.khanOut };
+    if (!item) return { valid:false, physical, reason:'scenario-missing' };
+    let valid = true;
+    if (item.khan) valid = physical.khanOut === true;
+    else if (item.regularMode === 'range') valid = physical.out >= Number(item.regularMin) && physical.out <= Number(item.regularMax) && !physical.khanOut;
+    else valid = physical.out === Number(item.regular || 0) && !physical.khanOut;
+    return { valid, physical, scenario:item.id };
+  }
+
+  function showGameResult() {
+    if (!roundPool.initialized || gameState.resultShown || !gameState.ticket) return;
+    finalizeScenarioVisual();
+    applyCurrentAltynThrowState();
+    const finalCheck = validateAltynTicketResult();
+    const scenarioItem = ScenarioCfg?.getOrDefault(gameState.ticket.scenario);
+    gameState.resultShown = true;
+
+    if (gameState.pendingBalance != null && Number.isFinite(gameState.pendingBalance)) {
+      if (gameState.mode === 'demo') {
+        gameState.balance = gameState.balance + Number(gameState.ticket.win || 0);
+        gameState.demoBalance = gameState.balance;
+      } else {
+        gameState.balance = Number(gameState.pendingBalance);
+        gameState.realBalance = gameState.balance;
+      }
+    }
+
+    gameState.phase = 'settled';
+    gameState.ticketReady = false;
+    gameState.busy = false;
+    showResultToast();
+    saveCompletedTicketLocally(gameState.ticket, gameState.mode);
+    maybeNudgeDemoBadge();
+    renderState();
+    LMS?.emit?.('X2_GAME_ROUND_COMPLETE', {
+      gameId:LMS_CFG.gameId || 'ALTYN_KHAN',
+      ticketId:gameState.ticket.ticketId,
+      scenario:gameState.ticket.scenario,
+      scenarioKey:scenarioItem?.key || gameState.ticket.scenarioKey,
+      win:Number(gameState.ticket.win || 0),
+      balance:gameState.balance,
+      denomination:gameState.denomination,
+      currency:gameState.currency,
+      currencyDisplay:gameState.currencyDisplay,
+      language:gameState.language,
+      mode:gameState.mode,
+      throwsCompleted:altynRound.completedThrows,
+      regularOut:altynRound.outIds.size,
+      khanOut:altynRound.khanOut,
+      visualValid:finalCheck.valid
+    });
+    handleAutoRoundComplete();
+  }
+
+  async function refreshBalance() {
+    gameState.phase = 'loading';
+    renderState();
+    try {
+      if (gameState.mode === 'demo') {
+        gameState.balance = Number(gameState.demoBalance);
+      } else {
+        // Contract has no "fetch current balance" call - REAL balance is
+        // only ever provided via X2_LMS_INIT (at startup) or in each
+        // PayTicket response (see initializeGameIntegration() and
+        // showGameResult()). Just display what we already know instead of
+        // calling an endpoint the LMS doesn't define.
+        gameState.balance = Number(gameState.realBalance ?? 0);
+      }
+      gameState.phase = 'idle';
+      renderDenominationButtons({centerActive:true});
+      renderState();
+      LMS?.emit?.('X2_GAME_BALANCE_LOADED', {gameId:LMS_CFG.gameId || 'CHUKO', balance:gameState.balance, currency:gameState.currency, currencyDisplay:gameState.currencyDisplay, mode:gameState.mode});
+    } catch (err) {
+      console.error(err);
+      gameState.phase = 'error';
+      showStatus('balanceError');
+      renderState();
+      LMS?.emit?.('X2_GAME_ERROR',{stage:'balance',code:err.code||'BALANCE_ERROR',message:err.message||String(err)});
+    }
+  }
+
+  async function requestNewGame() {
+    if (!['idle','settled'].includes(gameState.phase) || gameState.busy) return;
+    if (autoPlay.active && Number.isFinite(autoPlay.fixedStake)) {
+      gameState.denomination = Number(autoPlay.fixedStake);
+    }
+    hideGameResult();
+    showStatus('');
+    gameState.busy = true;
+    gameState.phase = 'requesting';
+    gameState.ticketReady = false;
+    gameState.ticket = null;
+    clearScenarioRuntime();
+
+    // Optimistic stake deduction: the stake disappears from the displayed
+    // balance the instant "New Game" is pressed, rather than only jumping
+    // once at the very end when the round settles. Rolled back below if the
+    // ticket request itself fails (insufficient funds, session expired,
+    // network error, etc.) so a failed bet never leaves the balance looking
+    // permanently (and wrongly) lower.
+    const balanceBeforeStake = gameState.balance;
+    gameState.balance = Math.max(0, balanceBeforeStake - Number(gameState.denomination || 0));
+    renderState();
+
+    try {
+      const request = {
+        gameId:LMS_CFG.gameId || 'CHUKO',
+        denomination:gameState.denomination,
+        currency:gameState.currency,
+        currencyDisplay:gameState.currencyDisplay,
+        language:gameState.language,
+        demoBalance:gameState.demoBalance
+      };
+      const data = gameState.mode === 'demo'
+        ? await LMS.createDemoTicket(request)
+        : await LMS.createTicket(request);
+      gameState.ticket = data;
+      gameState.pendingBalance = Number(data.balance);
+      gameState.denomination = Number(data.denomination ?? gameState.denomination);
+      if (data.currency) gameState.currency = String(data.currency).toUpperCase();
+      if (data.currencyDisplay) gameState.currencyDisplay = String(data.currencyDisplay);
+      prepareScenarioRuntime(data);
+      gameState.phase = 'ready';
+      gameState.ticketReady = true;
+      gameState.busy = false;
+      resetRound();
+      renderDenominationButtons();
+      renderState();
+      LMS?.emit?.('X2_GAME_TICKET_READY', {
+        gameId:LMS_CFG.gameId || 'CHUKO', ticketId:data.ticketId, scenario:data.scenario, scenarioKey:data.scenarioKey,
+        denomination:gameState.denomination, currency:gameState.currency, currencyDisplay:gameState.currencyDisplay,
+        language:gameState.language, mode:gameState.mode
+      });
+      if (autoPlay.active) scheduleAutoThrow();
+    } catch (err) {
+      console.error(err);
+      gameState.balance = balanceBeforeStake; // roll back the optimistic deduction - no ticket, no bet
+      gameState.phase = 'idle';
+      gameState.busy = false;
+      gameState.ticketReady = false;
+      gameState.ticket = null;
+      const code = err.code || 'GAME_START_ERROR';
+      showStatus(code === 'INSUFFICIENT_FUNDS' ? 'insufficient' : code === 'SESSION_EXPIRED' ? 'sessionEnded' : 'startError');
+      if (autoPlay.active) { clearAutoTimers(); finishAutoPlay(); }
+      renderState();
+      LMS?.emit?.('X2_GAME_ERROR',{stage:'newGame',code,message:err.message||String(err)});
+    }
+  }
+
+  async function setGameMode(mode) {
+    if (!gameState.demoAllowed || autoPlay.active || !['idle','settled'].includes(gameState.phase) || gameState.busy) return;
+    const next = mode === 'real' ? 'real' : 'demo';
+    if (next === gameState.mode) return;
+    gameState.mode = next;
+    gameState.ticket = null;
+    gameState.ticketReady = false;
+    gameState.pendingBalance = null;
+    autoPlay.selected = null;
+    clearScenarioRuntime();
+    hideGameResult();
+    resetRound();
+    LMS?.emit?.('X2_GAME_MODE_CHANGED',{gameId:LMS_CFG.gameId || 'CHUKO',mode:gameState.mode,currency:gameState.currency,language:gameState.language,denomination:gameState.denomination});
+    await refreshBalance();
+    gameState.phase = 'idle';
+    renderState();
+  }
+
+  // Single contextual action button: idle/settled -> new ticket,
+  // ready -> throw, error -> retry. Replaces the old separate
+  // "БРОСИТЬ САКА" / "НОВАЯ ИГРА" button pair.
+  function renderState() {
+    if (!ui.action) return;
+    let label = tr('loading');
+    let disabled = false;
+    switch (gameState.phase) {
+      case 'idle':
+      case 'settled': label = tr('newGame'); break;
+      case 'requesting': label = tr('loading'); disabled = true; break;
+      case 'ready': { const step=currentAltynThrow(); label = step ? `${tr('makeThrow')} ${step.index}/${altynRound.plan.throws.length}` : tr('makeThrow'); break; }
+      case 'throwing': label = tr('throwing'); disabled = true; break;
+      case 'loading': label = tr('loading'); disabled = true; break;
+      case 'error': label = tr('retry'); break;
+      default: disabled = true;
+    }
+    ui.action.textContent = label;
+    ui.action.disabled = disabled || autoPlay.active || gameState.busy;
+    if (ui.balance) ui.balance.textContent = `${formatMoney(gameState.balance)} ${gameState.currencyDisplay || gameState.currency}`;
+    renderDenominationButtons();
+    renderModeSwitch();
+    renderAutoPlayButton();
+    renderAudioControls();
+    renderTicketNumber();
+    renderScore();
+    syncAudioWithState();
+  }
+
+  function bindGameUi() {
+    // Hint text collapse/expand - purely a display toggle, the underlying
+    // text keeps updating normally either way.
+    ui.hintToggle?.addEventListener('click', () => {
+      const collapsed = ui.hint?.classList.toggle('hint-collapsed');
+      if (ui.hintToggle) {
+        ui.hintToggle.textContent = collapsed ? 'i' : '×';
+        ui.hintToggle.setAttribute('aria-label', collapsed ? 'Показать подсказку' : 'Скрыть подсказку');
+      }
+    });
+
+    // Browser audio starts only after a user gesture.
+    document.addEventListener('pointerdown', unlockAudio, { once:true, capture:true });
+
+    ui.sound?.addEventListener('click', e => { e.stopPropagation(); toggleSound(); });
+    ui.music?.addEventListener('click', e => { e.stopPropagation(); toggleMusic(); });
+
+    ui.action?.addEventListener('click', () => {
+      if (autoPlay.active) return;
+      if (gameState.phase === 'ready') throwSaka();
+      else if (gameState.phase === 'idle' || gameState.phase === 'settled') requestNewGame();
+      else if (gameState.phase === 'error') refreshBalance();
+    });
+
+    ui.autoPlay?.addEventListener('click', e => {
+      e.stopPropagation();
+      if (autoPlay.active) { requestAutoStop(); return; }
+      if (!['idle','settled'].includes(gameState.phase)) return;
+      if (Number.isInteger(autoPlay.selected) && autoPlay.selected > 0) { startAutoPlay(autoPlay.selected); return; }
+      renderAutoPlayMenu();
+      const open = !ui.autoMenu?.classList.contains('open');
+      ui.autoMenu?.classList.toggle('open', open);
+      ui.autoMenu?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    });
+    ui.autoMenu?.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('click', () => closeAutoMenu());
+
+    ui.deposit?.addEventListener('click', () => LMS?.emit?.('X2_GAME_DEPOSIT_REQUEST', {
+      gameId:LMS_CFG.gameId || 'CHUKO', mode:gameState.mode, currency:gameState.currency,
+      denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
+    }));
+
+    ui.denomSelect?.addEventListener('change', () => {
+      if (!['idle', 'settled'].includes(gameState.phase) || gameState.busy) return;
+      const value = Number(ui.denomSelect.value);
+      if (!Number.isFinite(value) || value <= 0) return;
+      gameState.denomination = value;
+      gameState.ticket = null;
+      gameState.ticketReady = false;
+      autoPlay.selected = null;
+      hideGameResult();
+      renderState();
+      LMS?.emit?.('X2_GAME_DENOMINATION_CHANGED', { gameId: LMS_CFG.gameId || 'CHUKO', denomination: value, currency: gameState.currency, language: gameState.language, mode: gameState.mode });
+    });
+
+    // DEBUG ONLY - see the lang-switch markup comment in index.html.
+    const SUPPORTED_LANGS = ['RU', 'EN', 'KG', 'ZH'];
+    ui.langSwitch?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const lang = SUPPORTED_LANGS.includes(b.dataset.lang) ? b.dataset.lang : 'RU';
+      if (lang === gameState.language) return;
+      gameState.language = lang;
+      applyTranslations();
+    }));
+
+    ui.modeSwitch?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => setGameMode(b.dataset.mode)));
+
+    const closeInfoMenu = () => {
+      ui.infoMenu?.classList.remove('open');
+      ui.infoMenu?.setAttribute('aria-hidden','true');
+      ui.info?.classList.remove('active');
+    };
+    const openHelp = () => {
+      closeInfoMenu();
+      ui.helpModal?.classList.add('open');
+      ui.helpModal?.setAttribute('aria-hidden','false');
+      LMS?.emit?.('X2_GAME_HELP_REQUEST', {gameId:LMS_CFG.gameId || 'CHUKO', language:gameState.language, mode:gameState.mode});
+    };
+    const closeHelp = () => { ui.helpModal?.classList.remove('open'); ui.helpModal?.setAttribute('aria-hidden','true'); };
+    const openPayout = () => { closeInfoMenu(); renderPayoutGrid(); ui.payoutModal?.classList.add('open'); ui.payoutModal?.setAttribute('aria-hidden','false'); };
+    const closePayout = () => { ui.payoutModal?.classList.remove('open'); ui.payoutModal?.setAttribute('aria-hidden','true'); };
+    const closeTickets = () => { ui.ticketsModal?.classList.remove('open'); ui.ticketsModal?.setAttribute('aria-hidden','true'); };
+
+    ui.info?.addEventListener('click', e => {
+      e.stopPropagation();
+      playUiTone();
+      closeAutoMenu();
+      const open = !ui.infoMenu?.classList.contains('open');
+      ui.infoMenu?.classList.toggle('open', open);
+      ui.infoMenu?.setAttribute('aria-hidden', open ? 'false' : 'true');
+      ui.info?.classList.toggle('active', open);
+    });
+    ui.infoMenu?.addEventListener('click', e => e.stopPropagation());
+    ui.infoPayout?.addEventListener('click', openPayout);
+    ui.infoHow?.addEventListener('click', openHelp);
+    ui.infoTickets?.addEventListener('click', () => { closeInfoMenu(); renderLocalTicketHistory(); ui.ticketsModal?.classList.add('open'); ui.ticketsModal?.setAttribute('aria-hidden','false'); });
+
+    ui.helpClose?.addEventListener('click', closeHelp);
+    ui.helpOk?.addEventListener('click', closeHelp);
+    ui.helpModal?.addEventListener('click', e => { if (e.target === ui.helpModal) closeHelp(); });
+
+    ui.payoutClose?.addEventListener('click', closePayout);
+    ui.payoutOk?.addEventListener('click', closePayout);
+    ui.payoutModal?.addEventListener('click', e => { if (e.target === ui.payoutModal) closePayout(); });
+
+    ui.ticketsClose?.addEventListener('click', closeTickets);
+    ui.ticketsOk?.addEventListener('click', closeTickets);
+    ui.ticketsModal?.addEventListener('click', e => { if (e.target === ui.ticketsModal) closeTickets(); });
+
+    document.addEventListener('click', closeInfoMenu);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closeInfoMenu(); closeHelp(); closePayout(); closeTickets(); }
+    });
+
+    renderDenominationButtons();
+    renderAutoPlayMenu();
+    applyTranslations();
+    renderState();
+  }
+
+  async function initializeGameIntegration() {
+    if (!LMS || !ScenarioCfg) throw new Error('LMS/scenario modules are not loaded');
+    console.info('[ALTYN] scenario set', ScenarioCfg.scenarioSetVersion, ScenarioCfg.demoOrder);
+    const settings = await LMS.getGameSettings();
+    gameState.denominations = Array.isArray(settings.denominations) && settings.denominations.length
+      ? settings.denominations.map(Number).filter(v=>Number.isFinite(v)&&v>0)
+      : [25,50,100];
+    const preferred = Number(settings.denomination ?? gameState.denomination);
+    gameState.denomination = gameState.denominations.includes(preferred) ? preferred : gameState.denominations[0];
+    gameState.currency = String(settings.currency || 'KGS').toUpperCase();
+    gameState.currencyDisplay = String(settings.currencyDisplay || settings.currency || 'сом');
+    {
+      const requested = String(settings.language || 'RU').toUpperCase();
+      gameState.language = ['RU', 'EN', 'KG', 'ZH'].includes(requested) ? requested : 'RU';
+    }
+    gameState.mode = String(settings.mode || 'demo').toLowerCase() === 'real' ? 'real' : 'demo';
+    gameState.demoAllowed = settings.demoAllowed !== false;
+    gameState.demoBalance = Number(settings.demoBalance ?? LMS_CFG.demoBalance ?? 10000);
+    // Contract: the REAL balance is provided exactly once at startup via
+    // X2_LMS_INIT's `balance` field (or the ?balance= test param) - the
+    // game must not fetch it from anywhere else.
+    gameState.realBalance = Number(settings.balance ?? 0);
+    gameState.phase = 'idle';
+    applyTranslations();
+    await refreshBalance();
+    resetRound();
+    renderState();
+    showStatus('');
+  }
+
+  function resetRound() {
+    const resetStartedAt = performance.now();
+    window.clearTimeout(resetTimer);
+    resetTimer = 0;
+    pileReleasedForThrow = false;
+    roundPhysicsFrozen = false;
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.flightPlan = [];
+    ensureRoundPool();
+
+    thrown = false;
+    roundIndex++;
+    roundSeed = roundIndex * 7919 + 17;
+    throwState = { active: false, targetPoint: null, guideDir: null, power: 0, impactBoosted: false, flightTime: 0 };
+    hideGameResult();
+    if (gameState.ticketReady && gameState.ticket) {
+      setHint('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` });
+    } else {
+      setHint('hintChooseDenom');
+    }
+    ui.hint.style.opacity = '1';
+    resetAimState();
+    hideAimVisuals();
+    if (ui.aimPower) ui.aimPower.hidden = true;
+    impactFxState.active = false;
+    if (impactFlash) impactFlash.setEnabled(false);
+
+    const positions = pilePositions();
+    const d = C.pieces.chuko;
+    const pileScale = pilePieceScale();
+    positions.slice(0, C.pile.chukoCount).forEach(([px, pz], i) => {
+      const jitter = C.pile.positionJitter;
+      const x = Number(tuning.pileX) + px + (Math.random() - 0.5) * jitter * 2;
+      const z = Number(tuning.pileZ) + pz + (Math.random() - 0.5) * jitter * 2;
+      const yaw = (i % 2 ? 0.78 : -0.72) + (i % 4 - 1.5) * 0.10;
+      const lift = (i % 5 === 0 || i % 7 === 0) ? C.pile.stackLift : 0;
+      const rot = BABYLON.Quaternion.FromEulerAngles(
+        (Math.random() - 0.5) * C.pile.angleJitter,
+        yaw + (Math.random() - 0.5) * C.pile.angleJitter,
+        (Math.random() - 0.5) * C.pile.angleJitter
+      );
+      queueBodyTransformReset(
+        roundPool.chukos[i],
+        new BABYLON.Vector3(x, d.height * pileScale * 0.58 + lift, z),
+        rot,
+        false
+      );
+    });
+
+    const kd = C.pieces.khan;
+    applyPilePieceScale();
+    queueBodyTransformReset(
+      roundPool.khan,
+      new BABYLON.Vector3(Number(tuning.pileX), kd.height * 0.54, Number(tuning.pileZ) - 0.01),
+      BABYLON.Quaternion.FromEulerAngles(
+        (Math.random() - 0.5) * C.pile.angleJitter * 0.45,
+        0.58 + (Math.random() - 0.5) * C.pile.angleJitter * 0.45,
+        (Math.random() - 0.5) * C.pile.angleJitter * 0.45
+      ),
+      false
+    );
+
+    saka = roundPool.saka.mesh;
+    sakaAggregate = roundPool.saka.aggregate;
+    queueBodyTransformReset(
+      roundPool.saka,
+      (() => { const s = throwStartPoint(); return new BABYLON.Vector3(s.x, s.y, s.z); })(),
+      BABYLON.Quaternion.FromEulerAngles(0.18, -0.45, 0.12),
+      false
+    );
+
+    updatePileShadow();
+    updateSakaShadow();
+    updateBodyCount();
+
+    // Keep sensible aim defaults for a quick tap-throw (no drag), but don't
+    // show the reticle until the person actually starts dragging SAKA.
+    const defaultGeo = aimGeometry();
+    const defaultPoint = snapLandingPointToNearestChuko({ x: defaultGeo.center.x, z: defaultGeo.center.z });
+    aimState.power = 0.58;
+    aimState.guideDir = defaultGeo.toCenter;
+    aimState.targetPoint = defaultPoint;
+    hideAimVisuals();
+
+    // Useful while profiling on iPhone: this measures JS reset work only.
+    const resetMs = performance.now() - resetStartedAt;
+    console.debug(`[CHUKO 0.13.20] pooled reset ${resetMs.toFixed(2)} ms`);
+  }
+
+  function ballisticForApex(start, target, power01) {
+    const p = clamp01(power01);
+    const g = Math.max(0.001, Math.abs(C.physics.gravity));
+    const arcMin = Math.max(0.55, Number(C.throw.arcHeightMin || 1.55));
+    const arcMax = Math.max(arcMin, Number(C.throw.arcHeightMax || arcMin));
+    const arcHeight = arcMin + (arcMax - arcMin) * p;
+
+    const apexY = Math.max(start.y, target.y) + arcHeight;
+    const rise = Math.max(0.001, apexY - start.y);
+    const fall = Math.max(0.001, apexY - target.y);
+    const vy = Math.sqrt(2 * g * rise);
+    const tUp = vy / g;
+    const tDown = Math.sqrt(2 * fall / g);
+    const flightTime = tUp + tDown;
+
+    const horizontal = target.subtract(start);
+    horizontal.y = 0;
+    const vxz = horizontal.scale(1 / Math.max(0.001, flightTime));
+    const velocity = new BABYLON.Vector3(vxz.x, vy, vxz.z);
+
+    return { velocity, flightTime, apexY, arcHeight };
+  }
+
+  function clamp01(v) {
+    return Math.max(0, Math.min(1, Number(v) || 0));
+  }
+
+  function normalize2(x, z, fallbackX = 0, fallbackZ = -1) {
+    const len = Math.hypot(x, z);
+    if (len < 1e-7) return { x: fallbackX, z: fallbackZ };
+    return { x: x / len, z: z / len };
+  }
+
+  function rotate2(v, angle) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return { x: v.x * c - v.z * s, z: v.x * s + v.z * c };
+  }
+
+  function signedAngle2(a, b) {
+    return Math.atan2(a.x * b.z - a.z * b.x, a.x * b.x + a.z * b.z);
+  }
+
+  function rayCircleIntersections2(origin, dir, center, radius) {
+    const ox = origin.x - center.x;
+    const oz = origin.z - center.z;
+    const b = 2 * (ox * dir.x + oz * dir.z);
+    const c = ox * ox + oz * oz - radius * radius;
+    const disc = b * b - 4 * c;
+    if (disc < 0) return null;
+    const sd = Math.sqrt(disc);
+    const t1 = (-b - sd) / 2;
+    const t2 = (-b + sd) / 2;
+    const near = Math.min(t1, t2);
+    const far = Math.max(t1, t2);
+    if (far <= 0) return null;
+    return { near: Math.max(0, near), far };
+  }
+
+  function aimGeometry() {
+    const start = throwStartPoint();
+    const origin = { x: start.x, z: start.z };
+    const center = { x: Number(tuning.pileX), z: Number(tuning.pileZ) };
+    const radius = C.throw.aimRadius;
+    const toCenter = normalize2(center.x - origin.x, center.z - origin.z);
+    const distance = Math.hypot(center.x - origin.x, center.z - origin.z);
+    const tangentHalfAngle = Math.asin(Math.max(0, Math.min(0.999, radius / Math.max(radius + 0.001, distance))));
+    const safety = Math.max(0, Number(C.throw.aimSafetyDeg || 0)) * Math.PI / 180;
+    return {
+      origin,
+      center,
+      radius,
+      toCenter,
+      halfAngle: Math.max(2 * Math.PI / 180, tangentHalfAngle - safety)
+    };
+  }
+
+  function clampThrowDirectionToPile(dir) {
+    const geo = aimGeometry();
+    const desired = normalize2(dir.x, dir.z, geo.toCenter.x, geo.toCenter.z);
+    let angle = signedAngle2(geo.toCenter, desired);
+    angle = Math.max(-geo.halfAngle, Math.min(geo.halfAngle, angle));
+    return rotate2(geo.toCenter, angle);
+  }
+
+  function landingForDirectionAndPower(dir, power01) {
+    const geo = aimGeometry();
+    const safeDir = clampThrowDirectionToPile(dir);
+    let hits = rayCircleIntersections2(geo.origin, safeDir, geo.center, geo.radius);
+    if (!hits) hits = rayCircleIntersections2(geo.origin, geo.toCenter, geo.center, geo.radius);
+
+    const minPower = Math.max(0, Math.min(0.45, Number(C.throw.landingPowerMin || 0.1)));
+    const maxPower = Math.max(minPower, Math.min(0.95, Number(C.throw.landingPowerMax || 0.82)));
+    const exponent = Math.max(0.35, Number(C.throw.landingPowerExponent || 1));
+    const power = clamp01(power01);
+    const mapped = minPower + (maxPower - minPower) * Math.pow(power, exponent);
+    const t = hits.near + (hits.far - hits.near) * mapped;
+
+    let point = { x: geo.origin.x + safeDir.x * t, z: geo.origin.z + safeDir.z * t };
+
+    // Keep the real impact point inside the dense contact zone of the pile.
+    // This prevents back-edge throws from landing behind the last chükö.
+    const contactRadius = geo.radius * Math.max(0.30, Math.min(0.95, Number(C.throw.contactRadiusFactor || 0.50)));
+    const dx = point.x - geo.center.x;
+    const dz = point.z - geo.center.z;
+    const r = Math.hypot(dx, dz);
+    if (r > contactRadius) {
+      const inv = 1 / Math.max(1e-6, r);
+      point = { x: geo.center.x + dx * inv * contactRadius, z: geo.center.z + dz * inv * contactRadius };
+    }
+
+    return { dir: safeDir, point, power };
+  }
+
+  function actualThrowFromGuide(guideDir, power01) {
+    const geo = aimGeometry();
+    const guide = clampThrowDirectionToPile(guideDir);
+    const guideAngle = signedAngle2(geo.toCenter, guide);
+    const leftRoom = guideAngle + geo.halfAngle;
+    const rightRoom = geo.halfAngle - guideAngle;
+    const maxDev = Math.max(0, Math.min(12, Number(C.throw.deviationMaxDeg || 0))) * Math.PI / 180;
+
+    let deviation = (Math.random() * 2 - 1) * maxDev;
+    deviation = Math.max(-Math.min(maxDev, leftRoom), Math.min(Math.min(maxDev, rightRoom), deviation));
+    const actualDir = rotate2(guide, deviation);
+    const landing = landingForDirectionAndPower(actualDir, power01);
+    return { ...landing, guideDir: guide, deviation };
+  }
+
+  function createAimVisuals() {
+    const targetMat = new BABYLON.StandardMaterial('aim-target-mat', scene);
+    targetMat.diffuseColor = new BABYLON.Color3(0.90, 0.94, 0.20);
+    targetMat.emissiveColor = new BABYLON.Color3(0.30, 0.34, 0.03);
+    targetMat.alpha = 0.72;
+    targetMat.disableDepthWrite = true;
+    aimTarget = BABYLON.MeshBuilder.CreateTorus('aim-target', {
+      diameter: 0.28,
+      thickness: 0.022,
+      tessellation: 24
+    }, scene);
+    aimTarget.material = targetMat;
+    aimTarget.isPickable = false;
+    aimTarget.renderingGroupId = 2;
+    aimTarget.setEnabled(false);
+  }
+
+  function hideAimVisuals() {
+    if (aimTarget) aimTarget.setEnabled(false);
+  }
+
+  function ballisticTargetYForAim() {
+    // The marker represents the intended impact/contact point, not the later
+    // geometric center position after SAKA has already touched the pile.
+    return Number(C.throw.contactAimY || C.throw.targetY || 0.30);
+  }
+
+  function correctFinalApproachToAim() {
+    const deterministicRound = scenarioRuntime.active && C.game?.deterministicScatter !== false;
+    if (!throwState.active || !throwState.targetPoint || !saka || !sakaAggregate?.body) return;
+    if (throwState.impactBoosted) return;
+    if (pileReleasedForThrow && !deterministicRound) return;
+    const velocity = readLinearVelocity(sakaAggregate.body);
+    if (velocity.y >= -0.05) return;
+
+    const contactY = ballisticTargetYForAim();
+    const startY = Number(C.throw.finalApproachStartY || 0.98);
+    if (saka.position.y > startY || saka.position.y <= contactY - 0.03) return;
+
+    const g = Math.max(0.001, Math.abs(C.physics.gravity));
+    const dy = Math.max(0, saka.position.y - contactY);
+
+    // Time until the SAKA centre reaches the real contact plane.
+    const disc = velocity.y * velocity.y + 2 * g * dy;
+    let t = (velocity.y + Math.sqrt(Math.max(0, disc))) / g;
+    if (!Number.isFinite(t) || t <= 0) {
+      t = Math.sqrt(Math.max(0.0004, 2 * dy / g));
+    }
+    t = Math.max(Number(C.throw.finalApproachMinTime || 0.035), t);
+
+    const tp = throwState.targetPoint;
+    const maxSpeed = Math.max(1, Number(C.throw.finalApproachMaxSpeed || 7.4));
+    let vx = (tp.x - saka.position.x) / t;
+    let vz = (tp.z - saka.position.z) / t;
+    vx = Math.max(-maxSpeed, Math.min(maxSpeed, vx));
+    vz = Math.max(-maxSpeed, Math.min(maxSpeed, vz));
+
+    // Very close to contact, remove the last few centimetres of accumulated
+    // numerical/collision error. This is still velocity guidance, not teleporting.
+    const horizontalError = Math.hypot(tp.x - saka.position.x, tp.z - saka.position.z);
+    if (saka.position.y <= contactY + 0.16 && horizontalError < 0.22) {
+      const closeT = Math.max(0.022, t);
+      vx = Math.max(-maxSpeed, Math.min(maxSpeed, (tp.x - saka.position.x) / closeT));
+      vz = Math.max(-maxSpeed, Math.min(maxSpeed, (tp.z - saka.position.z) / closeT));
+    }
+
+    debugLogThrottled('steering', {
+      sakaY: saka.position.y.toFixed(3),
+      contactY: contactY.toFixed(3),
+      horizontalError: horizontalError.toFixed(3),
+      t: t.toFixed(4),
+      vx: vx.toFixed(3), vz: vz.toFixed(3), vy: velocity.y.toFixed(3)
+    });
+
+    sakaAggregate.body.setLinearVelocity(new BABYLON.Vector3(vx, velocity.y, vz));
+  }
+
+  function updateAimVisuals(target2, power) {
+    if (!saka) return;
+    // Trajectory preview removed per request - only the landing marker
+    // (torus ring) is shown now, and only while actively dragging.
+    if (aimTarget) {
+      aimTarget.position.set(target2.x, 0.055, target2.z);
+      aimTarget.scaling.setAll(0.86 + 0.20 * clamp01(power));
+      aimTarget.setEnabled(true);
+    }
+  }
+
+  function resetAimState() {
+    aimState = { dragging: false, pointerId: null, power: 0, guideDir: null, targetPoint: null, tapCandidate: false, downX: 0, downY: 0 };
+    smoothedAimTarget = null;
+  }
+
+  function canvasPointer(e) {
+    const r = ui.canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top, width: r.width, height: r.height };
+  }
+
+  function sakaScreenPosition() {
+    if (!saka || !scene?.activeCamera) return null;
+    const viewport = scene.activeCamera.viewport.toGlobal(ui.canvas.clientWidth, ui.canvas.clientHeight);
+    // Project the same point that is actually drawn on screen (mesh position
+    // plus the visual-only anti-clipping lift applied in syncVisualItem),
+    // not the invisible physics proxy's raw position. Otherwise the tap/drag
+    // hit-test circle sits below the visible SAKA sprite and only its lower
+    // edge is tappable.
+    const liftedY = saka.position.y + sakaVisualLiftY(saka);
+    const point = new BABYLON.Vector3(saka.position.x, liftedY, saka.position.z);
+    return BABYLON.Vector3.Project(point, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), viewport);
+  }
+
+
+  function worldToScreenXZ(x, z, y = 0.05) {
+    if (!scene?.activeCamera) return null;
+    const viewport = scene.activeCamera.viewport.toGlobal(ui.canvas.clientWidth, ui.canvas.clientHeight);
+    return BABYLON.Vector3.Project(
+      new BABYLON.Vector3(x, y, z),
+      BABYLON.Matrix.Identity(),
+      scene.getTransformMatrix(),
+      viewport
+    );
+  }
+
+  // Camera-aware local basis for the aiming disc. This is important on mobile:
+  // world +X is not guaranteed to be screen-right for the current ArcRotateCamera.
+  function aimScreenBasis() {
+    const geo = aimGeometry();
+    const forward = { x: geo.toCenter.x, z: geo.toCenter.z };
+    let right = { x: -forward.z, z: forward.x };
+
+    const c0 = worldToScreenXZ(geo.center.x, geo.center.z);
+    const c1 = worldToScreenXZ(geo.center.x + right.x * 0.35, geo.center.z + right.z * 0.35);
+    if (c0 && c1 && c1.x < c0.x) right = { x: -right.x, z: -right.z };
+
+    return { geo, forward, right };
+  }
+
+  // Direct 2D aiming: finger displacement moves the landing marker inside the pile disc.
+  // Slingshot convention: pull left -> aim right; pull down -> aim farther through the pile.
+  function targetPointFromDrag(dx, dy, maxPull) {
+    const { geo, forward, right } = aimScreenBasis();
+    let lateral = (-dx / Math.max(1, maxPull)) * (C.throw.aimHorizontalSensitivity || 1);
+    let depth = (dy / Math.max(1, maxPull)) * (C.throw.aimDepthSensitivity || 1);
+
+    lateral = Math.max(-1, Math.min(1, lateral));
+    depth = Math.max(-1, Math.min(1, depth));
+
+    const len = Math.hypot(lateral, depth);
+    if (len > 1) {
+      lateral /= len;
+      depth /= len;
+    }
+
+    const r = geo.radius * Math.max(0.2, Math.min(1, C.throw.aimPointRadiusFactor || 0.88));
+    return {
+      x: geo.center.x + right.x * lateral * r + forward.x * depth * r,
+      z: geo.center.z + right.z * lateral * r + forward.z * depth * r
+    };
+  }
+
+  function isPointerNearSaka(e) {
+    const p = canvasPointer(e);
+    const sp = sakaScreenPosition();
+    if (!sp) return false;
+    const radius = isMobile() ? C.throw.sakaTouchRadiusMobile : C.throw.sakaTouchRadiusDesktop;
+    return Math.hypot(p.x - sp.x, p.y - sp.y) <= radius;
+  }
+
+  function updateDragAim(e) {
+    const dx = e.clientX - aimState.downX;
+    const dy = e.clientY - aimState.downY;
+    const pullLen = Math.hypot(dx, dy);
+    const maxPull = isMobile() ? C.throw.maxPullPxMobile : C.throw.maxPullPxDesktop;
+    const capped = Math.min(maxPull, pullLen);
+    const power = clamp01(capped / maxPull);
+
+    // v0.5 keeps the precise v0.4.2 camera-aware 2D aiming disc.
+    // This removes the old non-linear ray/power mapping and fixes horizontal mirroring.
+    const rawTargetPoint = targetPointFromDrag(dx, dy, maxPull);
+    const snappedPoint = C.game?.sakaAimSnapLive !== false
+      ? snapLandingPointToNearestChuko(rawTargetPoint)
+      : rawTargetPoint;
+
+    // snapLandingPointToNearestChuko() is a nearest-neighbour search, so the
+    // snapped point can jump discretely from one chükö to another as the
+    // finger crosses the boundary between their "closest" zones. Gliding the
+    // displayed/aimed point toward it each update (instead of assigning it
+    // directly) turns that jump into a smooth slide.
+    if (!smoothedAimTarget) smoothedAimTarget = { x: snappedPoint.x, z: snappedPoint.z };
+    const smoothing = 0.30;
+    smoothedAimTarget.x += (snappedPoint.x - smoothedAimTarget.x) * smoothing;
+    smoothedAimTarget.z += (snappedPoint.z - smoothedAimTarget.z) * smoothing;
+    const targetPoint = { x: smoothedAimTarget.x, z: smoothedAimTarget.z };
+
+    const geo = aimGeometry();
+    const guideDir = normalize2(
+      targetPoint.x - geo.origin.x,
+      targetPoint.z - geo.origin.z,
+      geo.toCenter.x,
+      geo.toCenter.z
+    );
+
+    aimState.power = power;
+    aimState.guideDir = guideDir;
+    aimState.targetPoint = targetPoint;
+    updateAimVisuals(targetPoint, power);
+
+    // Visual pull of SAKA opposite to the actual throw direction.
+    const pullWorld = C.throw.sakaPullWorld * power;
+    saka.position.set(
+      throwStartPoint().x - guideDir.x * pullWorld,
+      C.throw.start.y + 0.025 * power,
+      throwStartPoint().z - guideDir.z * pullWorld
+    );
+
+    if (ui.aimPower) {
+      ui.aimPower.hidden = power < 0.02;
+      const strong = ui.aimPower.querySelector('strong');
+      if (strong) strong.textContent = `${Math.round(power * 100)}%`;
+    }
+    if (power < 0.08) setHint('hintPullHarder');
+    else setHint('hintRelease');
+  }
+
+  function bindAimControls() {
+    ui.canvas.addEventListener('pointerdown', (e) => {
+      if (thrown || !saka || gameState.phase !== 'ready' || !gameState.ticketReady) return;
+      // Only a press that starts on SAKA itself can lead to a throw - either
+      // a drag (aiming) or a plain tap-release. A tap anywhere else on the
+      // field must do nothing.
+      if (!isPointerNearSaka(e)) return;
+
+      aimState.tapCandidate = true;
+      aimState.downX = e.clientX;
+      aimState.downY = e.clientY;
+      aimState.dragging = true;
+      aimState.pointerId = e.pointerId;
+      aimState.power = 0;
+      aimState.guideDir = null;
+      aimState.targetPoint = null;
+      smoothedAimTarget = null;
+      ui.canvas.setPointerCapture?.(e.pointerId);
+      setHint('hintDragStart');
+      e.preventDefault();
+    });
+
+    ui.canvas.addEventListener('pointermove', (e) => {
+      if (Math.hypot(e.clientX - aimState.downX, e.clientY - aimState.downY) > C.throw.tapThresholdPx) {
+        aimState.tapCandidate = false;
+      }
+      if (!aimState.dragging || aimState.pointerId !== e.pointerId || thrown || gameState.phase !== 'ready') return;
+      updateDragAim(e);
+      e.preventDefault();
+    });
+
+    const release = (e) => {
+      if (aimState.dragging && aimState.pointerId === e.pointerId) {
+        const power = aimState.power;
+        const guideDir = aimState.guideDir;
+        const targetPoint = aimState.targetPoint;
+        aimState.dragging = false;
+        aimState.pointerId = null;
+        aimState.tapCandidate = false;
+        if (ui.aimPower) ui.aimPower.hidden = true;
+        // A quick tap on SAKA (didn't pull back far enough to register real
+        // power) still throws, using the default auto-aim - same as before,
+        // just now gated on the press having started on SAKA (see
+        // pointerdown above), not anywhere on the field.
+        if (power < 0.06 || !guideDir || !targetPoint) throwSaka();
+        else throwSaka({ guideDir, targetPoint, power, manual: true });
+        e.preventDefault();
+      }
+    };
+
+    ui.canvas.addEventListener('pointerup', release);
+    ui.canvas.addEventListener('pointercancel', (e) => {
+      if (aimState.dragging && aimState.pointerId === e.pointerId) {
+        aimState.dragging = false;
+        aimState.pointerId = null;
+        { const s = throwStartPoint(); saka?.position.set(s.x, s.y, s.z); }
+        const geo = aimGeometry();
+        const defaultPoint = snapLandingPointToNearestChuko({ x: geo.center.x, z: geo.center.z });
+        aimState.targetPoint = defaultPoint;
+        hideAimVisuals();
+        if (ui.aimPower) ui.aimPower.hidden = true;
+        if (gameState.ticket) {
+          setHint('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` });
+        } else {
+          setHint('hintPressNewGame');
+        }
+      }
+      aimState.tapCandidate = false;
+    });
+  }
+
+  function snapLandingPointToNearestChuko(point) {
+    if (!C.game?.sakaContactSnapEnabled || !roundPool.initialized || !point) return point;
+
+    let best = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+    roundPool.chukos.forEach((item, index) => {
+      if (!item?.mesh) return;
+      if (altynRound.active && altynRound.outIds.has(index)) return;
+      const d = Math.hypot(item.mesh.position.x - point.x, item.mesh.position.z - point.z);
+      if (d < bestDist) { bestDist = d; best = { item, index }; }
+    });
+
+    if (!best) return point;
+    const maxDist = Number(C.game?.sakaContactSnapMaxDistance || 0.95);
+    if (bestDist > maxDist) return point;
+
+    // Aim the SAKA centre directly over the closest real chükö.
+    // This guarantees visible contact before the deterministic scatter begins.
+    return { x: best.item.mesh.position.x, z: best.item.mesh.position.z };
+  }
+
+  function throwSaka(options = {}) {
+    if (thrown || !saka || !sakaAggregate || gameState.phase !== 'ready' || !gameState.ticketReady) return;
+    thrown = true;
+    gameState.phase = 'throwing';
+    renderState();
+    playEffectFile('throw', 0.82);
+    if (ui.aimPower) ui.aimPower.hidden = true;
+
+    let guideDir;
+    let power;
+    if (options.guideDir) {
+      guideDir = clampThrowDirectionToPile(options.guideDir);
+      power = clamp01(options.power ?? 0.68);
+    } else {
+      const geo = aimGeometry();
+      const a = (Math.random() * 2 - 1) * geo.halfAngle * 0.66;
+      guideDir = rotate2(geo.toCenter, a);
+      power = 0.48 + Math.random() * 0.34;
+    }
+
+    let landingPoint;
+    if (options.targetPoint) {
+      // Manual drag is precise by design: preview ring and ballistic target are the same point.
+      // A tiny optional deviation can be enabled later, but defaults to zero for manual aim.
+      landingPoint = { x: options.targetPoint.x, z: options.targetPoint.z };
+      const dev = Math.max(0, Number(C.throw.manualDeviationMaxDeg || 0)) * Math.PI / 180;
+      if (dev > 0) {
+        const geo = aimGeometry();
+        const baseDir = normalize2(landingPoint.x - geo.origin.x, landingPoint.z - geo.origin.z, geo.toCenter.x, geo.toCenter.z);
+        const d = (Math.random() * 2 - 1) * dev;
+        const dir = rotate2(baseDir, d);
+        const dist = Math.hypot(landingPoint.x - geo.origin.x, landingPoint.z - geo.origin.z);
+        landingPoint = { x: geo.origin.x + dir.x * dist, z: geo.origin.z + dir.z * dist };
+      }
+    } else {
+      const actual = actualThrowFromGuide(guideDir, power);
+      landingPoint = actual.point;
+    }
+
+    // The visible target marker is authoritative. For manual aim it has already
+    // been snapped LIVE to a real chükö, so the ballistic endpoint must stay
+    // exactly on that visible marker. Auto/tap throws are snapped here once.
+    if (!options.manual) landingPoint = snapLandingPointToNearestChuko(landingPoint);
+
+    // Scenario result is planned BEFORE SAKA starts flying: exact final landing
+    // points for all 12 chükö and KHAN are fixed now and will not change later.
+    if (scenarioRuntime.active && C.game?.deterministicScatter !== false) {
+      prepareScenarioLandingPlan(landingPoint);
+    }
+
+    const target = new BABYLON.Vector3(landingPoint.x, ballisticTargetYForAim(), landingPoint.z);
+    const s0 = throwStartPoint();
+    const start = new BABYLON.Vector3(s0.x, s0.y, s0.z);
+    const ballistic = ballisticForApex(start, target, power);
+
+    throwState = {
+      active: true,
+      targetPoint: { x: landingPoint.x, z: landingPoint.z },
+      guideDir: { x: guideDir.x, z: guideDir.z },
+      power,
+      impactBoosted: false,
+      flightTime: ballistic.flightTime
+    };
+
+    debugRoundStartAt = performance.now();
+    debugLastLogAt = 0;
+    debugLog('THROW', {
+      power: power.toFixed(3),
+      start: { x: start.x.toFixed(3), y: start.y.toFixed(3), z: start.z.toFixed(3) },
+      target: { x: target.x.toFixed(3), y: target.y.toFixed(3), z: target.z.toFixed(3) },
+      landingPoint,
+      flightTimeSec: ballistic.flightTime.toFixed(3),
+      arcHeight: ballistic.arcHeight.toFixed(3),
+      velocity: { x: ballistic.velocity.x.toFixed(3), y: ballistic.velocity.y.toFixed(3), z: ballistic.velocity.z.toFixed(3) },
+      scenarioActive: scenarioRuntime.active,
+      deterministicScatter: C.game?.deterministicScatter !== false,
+      flightPlanLength: scenarioRuntime.flightPlan.length,
+      triggerHeight: Number(C.game?.sakaDeterministicContactTriggerY || 0.43),
+      triggerRadius: Number(C.game?.sakaDeterministicContactRadius || 0.22)
+    });
+
+    setHint('hintImpactWait', { power: Math.round(power * 100) });
+
+    // Pile remains STATIC after launch; onBeforeRender releases it only when SAKA is almost touching it.
+    pileReleasedForThrow = false;
+
+    saka.position.copyFrom(start);
+    sakaAggregate.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+    sakaAggregate.body.setLinearVelocity(BABYLON.Vector3.Zero());
+    sakaAggregate.body.setAngularVelocity(BABYLON.Vector3.Zero());
+
+    sakaAggregate.body.setLinearVelocity(ballistic.velocity);
+    const spin = C.throw.sideSpin * (0.82 + power * 0.36);
+    sakaAggregate.body.setAngularVelocity(new BABYLON.Vector3(
+      -spin * 0.60,
+      spin * 0.24,
+      spin
+    ));
+
+    resetTimer = window.setTimeout(() => {
+      resolveCurrentAltynThrow();
+    }, C.throw.settleMs);
+  }
+
+  function seededNoise(index) {
+    let x = (roundSeed + index * 374761393) >>> 0;
+    x = (x ^ (x >> 13)) >>> 0;
+    x = Math.imul(x, 1274126177) >>> 0;
+    x = (x ^ (x >> 16)) >>> 0;
+    return (x / 4294967295) * 2 - 1;
+  }
+
+  function readLinearVelocity(body) {
+    const out = BABYLON.Vector3.Zero();
+    try {
+      if (body?.getLinearVelocityToRef) {
+        body.getLinearVelocityToRef(out);
+        return out;
+      }
+      if (body?.getLinearVelocity) return body.getLinearVelocity() || out;
+    } catch (_) {}
+    return out;
+  }
+
+  // Fires the deterministic scenario contact exactly once per throw, however
+  // it was detected (real Havok collision or the height/radius heuristic
+  // below). Idempotent by the throwState.impactBoosted guard.
+  function triggerScenarioContact(point, source) {
+    if (!throwState.active || throwState.impactBoosted || !saka) return;
+    const tp = point || throwState.targetPoint || { x: saka.position.x, z: saka.position.z };
+    debugLog('CONTACT TRIGGERED', {
+      source: source || 'unknown',
+      sakaY: saka.position.y.toFixed(3),
+      sakaXZ: { x: saka.position.x.toFixed(3), z: saka.position.z.toFixed(3) },
+      targetPoint: throwState.targetPoint
+    });
+    pileReleasedForThrow = true; // bookkeeping only; pile stays STATIC either way
+    throwState.impactBoosted = true;
+    triggerImpactFx(tp, throwState.power || 0.6);
+    if (aimTarget) aimTarget.setEnabled(false);
+    playEffectFile(scenarioRuntime.khanTarget ? 'khanImpact' : 'impact', 1.0);
+    // No post-impact steering and no late correction. The whole scatter uses
+    // the precomputed landing plan prepared before the throw.
+    startScenarioScatter();
+  }
+
+  // Real contact detection: fires the moment Havok reports SAKA actually
+  // touching a chükö/KHAN collider, instead of guessing from position alone.
+  // This is the primary trigger for deterministic rounds - the height/radius
+  // check in applyImpactBoostIfNeeded() is only a fallback in case a
+  // collision event is ever missed (sleeping bodies, engine quirks, etc.).
+  function onSakaCollision(evt) {
+    // Once impactBoosted is set, everything else is post-contact physics
+    // noise (SAKA settling against neighbouring pieces/field) - not logged
+    // to keep the console usable if DEBUG_CONTACT is re-enabled later.
+    if (throwState.impactBoosted) return;
+    const otherNode = evt?.collidedAgainst?.transformNode;
+    const name = otherNode?.name || '(none)';
+    debugLog('HAVOK COLLISION EVENT', {
+      with: name,
+      type: evt?.type,
+      thrown, throwStateActive: throwState.active,
+      scenarioActive: scenarioRuntime.active
+    });
+    if (!thrown || !throwState.active) return;
+    if (!scenarioRuntime.active || C.game?.deterministicScatter === false) return;
+    if (!name.startsWith('chuko-') && name !== 'KHAN') return;
+    triggerScenarioContact(null, 'collision:' + name);
+  }
+
+  function applyImpactBoostIfNeeded() {
+    const cfg = C.throw.impactBoost;
+    if (!cfg?.enabled || !throwState.active || throwState.impactBoosted || !saka || !throwState.targetPoint) return;
+
+    const tp = throwState.targetPoint;
+    const sakaVelocity = readLinearVelocity(sakaAggregate?.body);
+    if (sakaVelocity.y > 0.15) return;
+
+    const dxPre = saka.position.x - tp.x;
+    const dzPre = saka.position.z - tp.z;
+    const distPre = Math.hypot(dxPre, dzPre);
+    const deterministicRound = scenarioRuntime.active && C.game?.deterministicScatter !== false;
+    const triggerHeight = deterministicRound
+      ? Number(C.game?.sakaDeterministicContactTriggerY || 0.43)
+      : Number(cfg.triggerHeight || 0.72);
+    const triggerRadius = deterministicRound
+      ? Number(C.game?.sakaDeterministicContactRadius || 0.22)
+      : Number(cfg.triggerRadius || 0.48);
+
+    debugLogThrottled('falling', {
+      sakaY: saka.position.y.toFixed(3),
+      sakaVelY: sakaVelocity.y.toFixed(3),
+      distPre: distPre.toFixed(3),
+      triggerHeight, triggerRadius,
+      deterministicRound,
+      pileReleasedForThrow
+    });
+
+    if (deterministicRound) {
+      // Fallback only: onSakaCollision() above is the primary trigger and
+      // normally fires first, well before this approximate height/radius
+      // check would. This still exists in case the real collision event is
+      // ever missed.
+      if (saka.position.y > triggerHeight || distPre > triggerRadius) return;
+      triggerScenarioContact(tp, 'height-radius-fallback');
+      return;
+    }
+
+    // Physics-only fallback: release the pile the moment SAKA enters the
+    // (looser) impact zone, same as before.
+    if (!pileReleasedForThrow && saka.position.y <= triggerHeight && distPre <= triggerRadius) {
+      setPileBodiesMotionDynamic();
+      pileReleasedForThrow = true;
+    }
+    if (!pileReleasedForThrow) return;
+
+    throwState.impactBoosted = true;
+    triggerImpactFx(tp, throwState.power || 0.6);
+    if (aimTarget) aimTarget.setEnabled(false);
+
+    // Physics-only fallback keeps the old Havok impact boost.
+    const affectRadius = Math.max(0.35, Number(cfg.affectRadius || 1.24));
+    const radialSpeed = Math.max(0, Number(cfg.radialSpeed || 4.35));
+    const forwardSpeed = Math.max(0, Number(cfg.forwardSpeed || 1.15));
+    const liftSpeed = Math.max(0, Number(cfg.liftSpeed || 1.05));
+    const randomSpeed = Math.max(0, Number(cfg.randomSpeed || 0.72));
+    const forward = normalize2(throwState.guideDir?.x || 0, throwState.guideDir?.z || -1, 0, -1);
+
+    let affected = 0;
+    bodies.forEach((item, index) => {
+      if (!item || (item.role !== 'chuko' && item.role !== 'khan') || !item.mesh || !item.aggregate?.body) return;
+      const px = item.mesh.position.x - tp.x;
+      const pz = item.mesh.position.z - tp.z;
+      const dist = Math.hypot(px, pz);
+      if (dist > affectRadius) return;
+
+      const falloff = Math.pow(Math.max(0, 1 - dist / affectRadius), 0.58);
+      const radial = normalize2(px, pz, seededNoise(index + 7), seededNoise(index + 19));
+      const sideX = seededNoise(index + 31);
+      const sideZ = seededNoise(index + 47);
+      const factor = item.role === 'khan' ? Number(cfg.khanFactor || 0.92) : 1;
+      const current = readLinearVelocity(item.aggregate.body);
+
+      const chukoIndex = item.role === 'chuko' ? roundPool.chukos.indexOf(item) : -1;
+      const scenarioTarget = item.role === 'khan'
+        ? scenarioRuntime.khanTarget
+        : scenarioRuntime.targetIds.has(chukoIndex);
+      const scenarioFactor = scenarioRuntime.active ? (scenarioTarget ? 2.40 : 0.22) : 1.0;
+      const added = new BABYLON.Vector3(
+        (radial.x * radialSpeed + forward.x * forwardSpeed + sideX * randomSpeed) * falloff * factor * scenarioFactor,
+        liftSpeed * (0.55 + 0.45 * falloff) * factor * (scenarioTarget ? 1.10 : 0.78),
+        (radial.z * radialSpeed + forward.z * forwardSpeed + sideZ * randomSpeed) * falloff * factor * scenarioFactor
+      );
+      item.aggregate.body.setLinearVelocity(current.add(added));
+
+      const spin = 6.5 + 4.5 * falloff;
+      item.aggregate.body.setAngularVelocity(new BABYLON.Vector3(
+        seededNoise(index + 71) * spin,
+        seededNoise(index + 89) * spin * 0.65,
+        seededNoise(index + 103) * spin
+      ));
+      affected++;
+    });
+
+    if (scenarioRuntime.active && scenarioRuntime.plan) {
+      scenarioRuntime.targetIds.forEach(index => {
+        const item = roundPool.chukos[index];
+        if (!item?.aggregate?.body) return;
+        const angle = scenarioRuntime.targetDirections.get(index) ?? 0;
+        const dx = Math.cos(angle), dz = Math.sin(angle);
+        const vel = readLinearVelocity(item.aggregate.body);
+        const outward = vel.x*dx + vel.z*dz;
+        const desired = 3.05 + Math.max(0, 3-Number(scenarioRuntime.plan.regular||0))*0.10;
+        const add = Math.max(0, desired-outward);
+        try {
+          item.aggregate.body.setLinearVelocity(new BABYLON.Vector3(
+            vel.x + dx*add,
+            Math.max(vel.y, 0.28),
+            vel.z + dz*add
+          ));
+        } catch (_) {}
+      });
+
+      if (scenarioRuntime.khanTarget && roundPool.khan?.aggregate?.body) {
+        const body = roundPool.khan.aggregate.body;
+        const vel = readLinearVelocity(body);
+        const pileX = Number(tuning.pileX||0), pileZ = Number(tuning.pileZ||0);
+        let dx = roundPool.khan.mesh.position.x-pileX;
+        let dz = roundPool.khan.mesh.position.z-pileZ;
+        const len = Math.hypot(dx,dz) || 1;
+        dx/=len; dz/=len;
+        const outward = vel.x*dx+vel.z*dz;
+        const add = Math.max(0,2.90-outward);
+        try { body.setLinearVelocity(new BABYLON.Vector3(vel.x+dx*add,Math.max(vel.y,0.26),vel.z+dz*add)); } catch (_) {}
+      }
+    }
+
+    if (affected) setHint('hintContactAffected', { n: affected });
+    else setHint('hintContactHavok');
+  }
+
+  function updateBodyCount() {
+    ui.bodyCount.textContent = String(bodies.length);
+  }
+
+  function clampChukoInsideView(item, nx, nz, clampRadius, clampY = null) {
+    if (!item?.aggregate?.body || !item?.mesh || chukoClampPending.has(item)) return;
+    chukoClampPending.add(item);
+    const body = item.aggregate.body;
+    const mesh = item.mesh;
+    const rot = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : BABYLON.Quaternion.Identity();
+    const y = clampY == null ? Math.max(0.08, Math.min(mesh.position.y, 0.92)) : clampY;
+
+    try {
+      body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+      body.setLinearVelocity(BABYLON.Vector3.Zero());
+      body.setAngularVelocity(BABYLON.Vector3.Zero());
+      body.disablePreStep = false;
+      mesh.position.set(nx * clampRadius, y, nz * clampRadius);
+      mesh.rotationQuaternion = rot;
+      mesh.computeWorldMatrix(true);
+
+      scene.onAfterRenderObservable.addOnce(() => {
+        try {
+          body.disablePreStep = true;
+          body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+          body.setLinearVelocity(new BABYLON.Vector3(-nx * 0.18, 0, -nz * 0.18));
+          body.setAngularVelocity(BABYLON.Vector3.Zero());
+        } catch (_) {}
+        chukoClampPending.delete(item);
+      });
+    } catch (_) {
+      chukoClampPending.delete(item);
+    }
+  }
+
+  function projectPieceToScreen(mesh) {
+    if (!scene?.activeCamera || !engine || !mesh) return null;
+    try {
+      return BABYLON.Vector3.Project(
+        mesh.getAbsolutePosition(),
+        BABYLON.Matrix.Identity(),
+        scene.getTransformMatrix(),
+        scene.activeCamera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight())
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+
+  function renderPointToCss(point) {
+    if (!point || !ui.canvas || !engine) return null;
+    const rect = ui.canvas.getBoundingClientRect();
+    const rw = Math.max(1, engine.getRenderWidth());
+    const rh = Math.max(1, engine.getRenderHeight());
+    return {
+      x: rect.left + point.x * rect.width / rw,
+      y: rect.top + point.y * rect.height / rh
+    };
+  }
+
+  function projectWorldToCss(position) {
+    if (!scene?.activeCamera || !engine || !position) return null;
+    try {
+      const p = BABYLON.Vector3.Project(
+        position,
+        BABYLON.Matrix.Identity(),
+        scene.getTransformMatrix(),
+        scene.activeCamera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight())
+      );
+      return renderPointToCss(p);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function whiteRingCssGeometry() {
+    const el = ui.fieldPhoto || document.querySelector('.field-photo');
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      cx: rect.left + rect.width * Number(C.game?.whiteRingCx || 0.5051),
+      cy: rect.top + rect.height * Number(C.game?.whiteRingCy || 0.4697),
+      rx: rect.width * Number(C.game?.whiteRingRx || 0.2948),
+      ry: rect.height * Number(C.game?.whiteRingRy || 0.2260)
+    };
+  }
+
+  function whiteRingMetricForWorld(position) {
+    const p = projectWorldToCss(position);
+    const ring = whiteRingCssGeometry();
+    if (!p || !ring || ring.rx <= 1 || ring.ry <= 1) return null;
+    return Math.hypot((p.x - ring.cx) / ring.rx, (p.y - ring.cy) / ring.ry);
+  }
+
+  // Two automated attempts to compute this point (camera-matrix unprojection,
+  // then a metric-minimising hill-climb) each looked plausible on paper but
+  // produced a visibly wrong result in the actual browser (verified only by
+  // screenshots, since this sandbox has no WebGL) - the second one was worse
+  // than the first. Both are removed. The scatter pivot is now a pair of
+  // plain tuning values the person calibrating the composition sets by eye
+  // (see "ЦЕНТР РАЗЛЁТА" in the tune panel) and defaults to the pile
+  // position. This is less automatic, but it is the one method that can
+  // actually be verified against what is on screen.
+  function updateScatterPivot() {
+    scatterPivot = {
+      x: Number(tuning.scatterPivotX ?? tuning.pileX ?? 0),
+      z: Number(tuning.scatterPivotZ ?? tuning.pileZ ?? 0)
+    };
+    return scatterPivot;
+  }
+
+  function containSakaInsidePlayCircle() {
+    if (roundPhysicsFrozen || !thrown || !saka || !sakaAggregate?.body || sakaClampPending) return;
+
+    // Do not interfere with the high arc. Clamp only when SAKA is already near/after landing.
+    if (saka.position.y > 0.72) return;
+
+    const body = sakaAggregate.body;
+    const r = Math.hypot(saka.position.x, saka.position.z);
+    const softRadius = Number(C.game?.sakaContainSoftRadius || 2.02);
+    const hardRadius = Number(C.game?.sakaContainHardRadius || 2.14);
+    const clampRadius = Number(C.game?.sakaContainClampRadius || 1.98);
+    const minY = Number(C.game?.sakaContainMinY || 0.12);
+    if (r <= softRadius) return;
+
+    const inv = 1 / Math.max(1e-6, r);
+    const nx = saka.position.x * inv;
+    const nz = saka.position.z * inv;
+    const vel = readLinearVelocity(body);
+    const outward = vel.x * nx + vel.z * nz;
+
+    // Soft containment near the white circle.
+    if (r < hardRadius) {
+      let vx = vel.x * 0.92;
+      let vz = vel.z * 0.92;
+      let vy = vel.y;
+      if (outward > 0) {
+        vx -= nx * (outward * 1.30 + 0.18);
+        vz -= nz * (outward * 1.30 + 0.18);
+      }
+      if (saka.position.y < minY && vy < 0) vy = 0;
+      try { body.setLinearVelocity(new BABYLON.Vector3(vx, vy, vz)); } catch (_) {}
+      return;
+    }
+
+    // Hard guarantee: SAKA never leaves the visible white play circle.
+    sakaClampPending = true;
+    const rot = saka.rotationQuaternion ? saka.rotationQuaternion.clone() : BABYLON.Quaternion.Identity();
+    const y = Math.max(minY, Math.min(saka.position.y, 0.46));
+    try {
+      body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+      body.setLinearVelocity(BABYLON.Vector3.Zero());
+      body.setAngularVelocity(BABYLON.Vector3.Zero());
+      body.disablePreStep = false;
+      saka.position.set(nx * clampRadius, y, nz * clampRadius);
+      saka.rotationQuaternion = rot;
+      saka.computeWorldMatrix(true);
+      scene.onAfterRenderObservable.addOnce(() => {
+        try {
+          body.disablePreStep = true;
+          body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+          body.setLinearVelocity(new BABYLON.Vector3(-nx * 0.28, 0, -nz * 0.28));
+          body.setAngularVelocity(BABYLON.Vector3.Zero());
+        } catch (_) {}
+        sakaClampPending = false;
+      });
+    } catch (_) {
+      sakaClampPending = false;
+    }
+  }
+
+  function containScatterInView() {
+    if (roundPhysicsFrozen || !roundPool.initialized || !thrown) return;
+    if (scenarioRuntime.active && C.game?.deterministicScatter !== false) return;
+
+    // IMPORTANT: only chükö and KHAN are constrained here. SAKA is never touched,
+    // so its ballistic trajectory and Havok flight remain exactly as in v0.8.19.
+    const items = [...roundPool.chukos, roundPool.khan].filter(Boolean);
+    const softRadius = 2.72;
+    const hardRadius = 2.94;
+    const absoluteRadius = 3.08;
+    const clampRadius = 2.82;
+    const w = engine.getRenderWidth();
+    const h = engine.getRenderHeight();
+
+    for (const item of items) {
+      const body = item?.aggregate?.body;
+      const mesh = item?.mesh;
+      if (!body || !mesh) continue;
+
+      const r = Math.hypot(mesh.position.x, mesh.position.z);
+      const inv = 1 / Math.max(1e-6, r || 1);
+      const nx = mesh.position.x * inv;
+      const nz = mesh.position.z * inv;
+      const screen = projectPieceToScreen(mesh);
+
+      const visuallyOutside = screen && (
+        screen.x < w * 0.055 || screen.x > w * 0.945 ||
+        screen.y < h * 0.055 || screen.y > h * 0.895
+      );
+
+      // Absolute guarantee: if a chükö reaches the visual border or leaves the
+      // safe world radius, return that CHÜKÖ only. No physics wall exists for SAKA.
+      if (visuallyOutside || r >= absoluteRadius) {
+        clampChukoInsideView(item, nx, nz, clampRadius);
+        continue;
+      }
+
+      const vel = readLinearVelocity(body);
+
+      // Limit rare upward launches without changing the normal scatter.
+      if (mesh.position.y > 1.32 && vel.y > 0) {
+        body.setLinearVelocity(new BABYLON.Vector3(vel.x * 0.82, -0.22, vel.z * 0.82));
+        continue;
+      }
+
+      if (r <= softRadius) continue;
+      const outward = vel.x * nx + vel.z * nz;
+      let vx = vel.x * 0.86;
+      let vz = vel.z * 0.86;
+      let vy = Math.min(vel.y, 0.48);
+
+      if (outward > 0) {
+        const strength = r >= hardRadius ? 1.55 : 1.18;
+        vx -= nx * outward * strength;
+        vz -= nz * outward * strength;
+      }
+      if (r >= hardRadius) {
+        const pull = (r - hardRadius + 0.03) * 5.0;
+        vx -= nx * pull;
+        vz -= nz * pull;
+      }
+      body.setLinearVelocity(new BABYLON.Vector3(vx, vy, vz));
+    }
+  }
+
+  function enforceScenarioDuringScatter() {
+    if (scenarioRuntime.active && C.game?.deterministicScatter !== false) {
+      updateScenarioScatterAnimation();
+    }
+  }
+
+  function updatePerf() {
+    const fps = engine.getFps();
+    const frame = 1000 / Math.max(1, fps);
+    ui.fps.textContent = Math.round(fps).toString();
+    ui.frameMs.textContent = `${frame.toFixed(1)} ms`;
+
+    if (!isMobile() || adaptiveScaleApplied) return;
+    if (fps < C.mobile.lowFpsThreshold) {
+      if (!lowFpsStartedAt) lowFpsStartedAt = performance.now();
+      const elapsed = (performance.now() - lowFpsStartedAt) / 1000;
+      if (elapsed >= C.mobile.lowFpsSeconds) {
+        engine.setHardwareScalingLevel(1 / C.mobile.fallbackDevicePixelRatio);
+        ui.renderScale.textContent = `${C.mobile.fallbackDevicePixelRatio.toFixed(2)}× auto`;
+        adaptiveScaleApplied = true;
+      }
+    } else {
+      lowFpsStartedAt = 0;
+    }
+  }
+
+  async function boot() {
+    if (!window.BABYLON) throw new Error('Babylon.js не загрузился. Проверьте доступ к CDN.');
+
+    engine = new BABYLON.Engine(ui.canvas, true, {
+      preserveDrawingBuffer: false,
+      stencil: false,
+      disableWebGL2Support: false,
+      antialias: true,
+      alpha: true,
+      premultipliedAlpha: false,
+      powerPreference: 'high-performance'
+    });
+    configureRenderScale();
+
+    scene = new BABYLON.Scene(engine);
+    scene.skipPointerMovePicking = true;
+    scene.performancePriority = BABYLON.ScenePerformancePriority.Intermediate;
+
+    await initPhysics();
+    createEnvironment();
+    await loadGlbModels();
+    createAimVisuals();
+    bindTuner();
+    bindGameUi();
+    applyCameraTuning();
+    applyPilePieceScale();
+    resetRound();
+    await initializeGameIntegration();
+
+    scene.onBeforeRenderObservable.add(() => {
+      syncAllGlbVisuals();
+      updateShadowHelpers();
+      updateImpactFx(engine.getDeltaTime() * 0.001);
+      correctFinalApproachToAim();
+      releasePileIfImpactIsImminent();
+      applyImpactBoostIfNeeded();
+      containScatterInView();
+      enforceScenarioDuringScatter();
+      containSakaInsidePlayCircle();
+      if (saka && saka.position.y < -2.5) {
+        throwState.active = false;
+        pileReleasedForThrow = false;
+        sakaAggregate.body.setLinearVelocity(BABYLON.Vector3.Zero());
+        sakaAggregate.body.setAngularVelocity(BABYLON.Vector3.Zero());
+        sakaAggregate.body.setMotionType(BABYLON.PhysicsMotionType.STATIC);
+      }
+    });
+
+    let perfTick = 0;
+    engine.runRenderLoop(() => {
+      scene.render();
+      perfTick++;
+      if (perfTick % 12 === 0) updatePerf();
+    });
+
+    // Our own layout can change size without a plain window "resize" event
+    // firing in every browser (in-app browsers in particular - see the
+    // #shell-size-style script in index.html), so engine.resize() also
+    // listens to the same set of triggers that script uses.
+    const scheduleEngineResize = () => requestAnimationFrame(() => {
+      applyDomTuning(); // rescale the 2D art layer to match the (possibly new) shell size
+      engine.resize();
+    });
+    window.addEventListener('resize', scheduleEngineResize, { passive: true });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(scheduleEngineResize, 60);
+      setTimeout(scheduleEngineResize, 320);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', scheduleEngineResize);
+      window.visualViewport.addEventListener('scroll', scheduleEngineResize);
+    }
+    setTimeout(scheduleEngineResize, 320);
+    setTimeout(scheduleEngineResize, 1050);
+    setTimeout(scheduleEngineResize, 2050);
+    bindAimControls();
+
+    updatePerf();
+  }
+
+  boot().catch(showFatal);
+})();
