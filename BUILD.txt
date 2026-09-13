@@ -1,6 +1,7 @@
-ALTYN KHAN Modern 3D build: 0.3.0
+ALTYN KHAN Modern 3D build: 0.3.1
 Base: CHUKO Modern 3D v9 / 0.13.21
-Stage: KHAN scenarios 7-9 finale polish
+Stage: amplified KHAN finale rings
 Core mechanics: v0.2.1 multi-throw flow retained
 KHAN result: throw 3 = x10, throw 2 = x15, throw 1 = x20
+Effect: 5 expanding gold rings + large radial flash; x20 gets maximum-scale burst
 Financial result source: LMS authoritative
