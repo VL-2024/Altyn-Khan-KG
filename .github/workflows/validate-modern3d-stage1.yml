@@ -24,13 +24,15 @@ jobs:
           node --check src/game.js
       - name: Verify multi-throw, effects, localization, UI and audio wiring
         run: |
-          grep -q "X2_ALTYN_BUILD = '0.4.7'" index.html
+          grep -q "X2_ALTYN_BUILD = '0.4.9'" index.html
           grep -q "altyn-scenario-controller.js" index.html
-          grep -q "khan-effects.js?v=0.4.7" index.html
-          grep -q "win-effects.js?v=0.4.7" index.html
-          grep -q "counter-sync.js?v=0.4.7" index.html
+          grep -q "khan-effects.js?v=0.4.9" index.html
+          grep -q "win-effects.js?v=0.4.9" index.html
+          grep -q "counter-sync.js?v=0.4.9" index.html
           grep -q "data:image/webp;base64" index.html
-          grep -q "version: '0.4.7'" src/config.js
+          grep -q "version: '0.4.9'" src/config.js
+          grep -q "procedural KHAN proxy" src/game.js
+          ! grep -q "render both sides of KHAN surfaces only" src/game.js
           grep -q "RU:'ОРДО'" src/i18n.js
           grep -q "АЛТЫН ХАН 3D" src/i18n.js
           grep -q "khanPopup" src/i18n.js
