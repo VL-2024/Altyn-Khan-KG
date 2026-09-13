@@ -264,7 +264,7 @@
     sakaZ: 2.85,
     chukoModelScale: 1.22,
     chukoModelY: -0.14,
-    khanModelScale: 0.98,
+    khanModelScale: 1.08,
     khanModelY: -0.15,
     sakaModelScale: 0.78,
     sakaModelY: 0.00,
@@ -452,8 +452,9 @@
     if (!mat || typeof mat.clone !== 'function') return mat;
     const clone = mat.clone(`${mat.name || kind}-lift-${suffix}`);
     const warm = kind === 'khan';
-    const factor = warm ? 1.24 : 1.18;
-    const lift = warm ? 0.028 : 0.020;
+    const neutral = kind === 'chuko';
+    const factor = warm ? 1.36 : (neutral ? 1.14 : 1.22);
+    const lift = warm ? 0.045 : (neutral ? 0.018 : 0.024);
 
     if (clone.albedoColor) clone.albedoColor = boostColor3(clone.albedoColor, factor, lift);
     if (clone.diffuseColor) clone.diffuseColor = boostColor3(clone.diffuseColor, factor, lift);
@@ -467,12 +468,14 @@
       clone.diffuseTexture.level = (clone.diffuseTexture.level || 1) * (warm ? 1.10 : 1.08);
     }
 
-    if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(0.16, clone.roughness * 0.88);
-    if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.22);
+    if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(warm ? 0.13 : 0.16, clone.roughness * (warm ? 0.78 : 0.88));
+    if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.34);
 
     const emissiveLift = warm
-      ? new BABYLON.Color3(0.11, 0.075, 0.028)
-      : new BABYLON.Color3(0.035, 0.055, 0.11);
+      ? new BABYLON.Color3(0.18, 0.125, 0.045)
+      : (neutral
+          ? new BABYLON.Color3(0.030, 0.026, 0.020)
+          : new BABYLON.Color3(0.045, 0.065, 0.12));
 
     if (clone.emissiveColor) {
       clone.emissiveColor = new BABYLON.Color3(
@@ -488,7 +491,6 @@
   }
 
   function brightenImportedVisualMaterials(kind, meshes, suffix) {
-    if (kind !== 'khan' && kind !== 'saka') return;
     const cache = new Map();
     for (const mesh of meshes) {
       const mat = mesh?.material;
@@ -1079,8 +1081,8 @@
     scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
     scene.imageProcessingConfiguration.toneMappingEnabled = true;
     scene.imageProcessingConfiguration.toneMappingType = BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-    scene.imageProcessingConfiguration.exposure = 1.02;
-    scene.imageProcessingConfiguration.contrast = 1.04;
+    scene.imageProcessingConfiguration.exposure = 1.08;
+    scene.imageProcessingConfiguration.contrast = 1.02;
     scene.fogMode = BABYLON.Scene.FOGMODE_NONE;
 
     const camera = new BABYLON.ArcRotateCamera(
@@ -1099,13 +1101,13 @@
     camera.inputs.clear();
 
     const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0.0, 1, -0.05), scene);
-    hemi.intensity = 0.88;
+    hemi.intensity = 1.00;
     hemi.diffuse = new BABYLON.Color3(0.92, 0.91, 0.88);
-    hemi.groundColor = new BABYLON.Color3(0.20, 0.19, 0.18);
+    hemi.groundColor = new BABYLON.Color3(0.28, 0.27, 0.25);
 
     const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-0.40, -1, 0.26), scene);
     sun.position = new BABYLON.Vector3(5, 8, -7);
-    sun.intensity = 1.66;
+    sun.intensity = 1.58;
     sun.diffuse = new BABYLON.Color3(1.0, 0.90, 0.72);
 
     const shadowMapSize = isMobile() ? 512 : 1024;
