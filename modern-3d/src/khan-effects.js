@@ -1,4 +1,4 @@
-/* ALTYN KHAN Modern 3D v0.4.0 — amplified KHAN finale effects.
+/* ALTYN KHAN Modern 3D v0.4.1 — amplified KHAN finale effects.
  * Presentation-only layer. Financial result remains LMS-authoritative.
  */
 (() => {
