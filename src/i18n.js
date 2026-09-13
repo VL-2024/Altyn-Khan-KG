@@ -16,8 +16,8 @@ const LANGS = ['RU', 'EN', 'KG', 'ZH'];
 
 const TABLE = {
   balance:          { RU:'Баланс',                    EN:'Balance',                      KG:'Баланс',                       ZH:'余额' },
-  title:            { RU:'ЧҮКӨ',                       EN:'CHUKO',                        KG:'ЧҮКӨ',                         ZH:'CHUKO' },
-  subtitle:         { RU:'Выбей Хана',                  EN:'Knock Out the Khan',           KG:'Ханды жык',                    ZH:'击败可汗' },
+  title:            { RU:'АЛТЫН ХАН',                  EN:'ALTYN KHAN',                   KG:'АЛТЫН ХАН',                    ZH:'ALTYN KHAN' },
+  subtitle:         { RU:'Modern 3D',                   EN:'Modern 3D',                    KG:'Modern 3D',                     ZH:'Modern 3D' },
 
   newGame:          { RU:'Новая игра',                 EN:'New Game',                     KG:'Жаңы оюн',                     ZH:'新游戏' },
   makeThrow:        { RU:'Сделать бросок',              EN:'Throw',                        KG:'Ыргытуу',                      ZH:'投掷' },
@@ -64,14 +64,14 @@ const TABLE = {
                       EN:'SAKA will hit the chuko. The ticket result is already determined by the LMS - the game only displays it.',
                       KG:'САКА чүкөлөргө урунат. Билеттин жыйынтыгын LMS алдын ала аныктайт, оюн аны гана көрсөтөт.',
                       ZH:'萨卡将击中恰阔骨（chuko）。彩票结果已由LMS系统预先确定，游戏只是将其展示出来。' },
-  helpMultiplier:   { RU:'Выбитые чүкө дают множитель — таблица выплат открывается кнопкой «Инфо».',
+  helpMultiplier:   { RU:'Итоговое число выбитых чүкө определяет множитель — таблица выплат открывается кнопкой «Инфо».',
                       EN:'Knocked-out chuko give a multiplier - open the payout table with the "Info" button.',
                       KG:'Чыккан чүкөлөр көбөйткүч берет — таблица «Инфо» баскычы менен ачылат.',
                       ZH:'被击出的恰阔骨会带来倍数加成——点击"信息"按钮查看赔付表。' },
-  helpKhan:         { RU:'Если вместе с чүкө выбит ХАН, выигрыш дополнительно умножается на ×5.',
-                      EN:'If KHAN is knocked out together with the chuko, the win is additionally multiplied by ×5.',
-                      KG:'Эгер чүкөлөр менен кошо ХАН чыкса, утуш дагы ×5ке көбөйөт.',
-                      ZH:'如果可汗与恰阔骨一起被击出，奖金将额外乘以×5。' },
+  helpKhan:         { RU:'ХАН: выбит 1-м броском — ×20, 2-м — ×15, 3-м — ×10.',
+                      EN:'KHAN: knocked out on throw 1 = ×20, throw 2 = ×15, throw 3 = ×10.',
+                      KG:'ХАН: 1-ыргытууда чыкса ×20, 2-ыргытууда ×15, 3-ыргытууда ×10.',
+                      ZH:'可汗：第1次投掷击出×20，第2次×15，第3次×10。' },
   helpOk:           { RU:'Понятно',                    EN:'Got it',                       KG:'Түшүнүктүү',                   ZH:'知道了' },
 
   // In-canvas gameplay hint bar (see ui.hint in game.js). {placeholders}
