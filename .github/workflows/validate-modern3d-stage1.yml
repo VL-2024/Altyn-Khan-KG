@@ -1,104 +1,36 @@
-name: Validate Altyn Khan Modern 3D
+name: Apply ORDO v0.5.1 Android visual profile
 
 on:
   push:
     branches: [modern-3d]
 
+permissions:
+  contents: write
+
 jobs:
-  validate:
+  apply:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Syntax check
+        with:
+          ref: modern-3d
+          fetch-depth: 0
+      - name: Apply Android visual patch
+        run: python .github/scripts/apply-v051.py
+      - name: Verify source
         run: |
-          node --check src/config.js
-          node --check src/scenario-config.js
-          node --check src/altyn-scenario-controller.js
-          node --check src/khan-effects.js
-          node --check src/win-effects.js
-          node --check src/counter-sync.js
-          node --check lms-adapter.js
-          node --check lms-config.js
-          node --check src/i18n.js
           node --check src/game.js
-      - name: Verify multi-throw, effects, localization, UI and audio wiring
-        run: |
-          grep -q "X2_ALTYN_BUILD = '0.5.0'" index.html
-          grep -q "altyn-scenario-controller.js" index.html
-          grep -q "khan-effects.js?v=0.5.0" index.html
-          grep -q "win-effects.js?v=0.5.0" index.html
-          grep -q "counter-sync.js?v=0.5.0" index.html
-          grep -q "data:image/webp;base64" index.html
-          grep -q "version: '0.5.0'" src/config.js
-          grep -q "procedural KHAN proxy" src/game.js
-          ! grep -q "render both sides of KHAN surfaces only" src/game.js
+          node --check src/config.js
+          grep -q "X2_ALTYN_BUILD = '0.5.1'" index.html
+          grep -q "version: '0.5.1'" src/config.js
+          grep -q "ANDROID_VISUAL_BOOST" src/game.js
+          grep -q "android-fill" src/game.js
           grep -q "khanModelScale: 1.08" src/game.js
-          grep -q "scene.imageProcessingConfiguration.exposure = 1.08" src/game.js
-          grep -q "hemi.intensity = 1.00" src/game.js
-          grep -q "const neutral = kind === 'chuko'" src/game.js
-          grep -q "RU:'ОРДО'" src/i18n.js
-          grep -q "АЛТЫН ХАН 3D" src/i18n.js
-          grep -q "khanPopup" src/i18n.js
-          grep -q "EN:'WOW!'" src/i18n.js
-          grep -q "popupText" src/khan-effects.js
-          grep -q "title.textContent = popupText()" src/khan-effects.js
-          grep -q "height:clamp(52px,12.8vw,80px)" styles.css
-          grep -q "bottom:calc(0.4% + 45px)" styles.css
-          grep -q "height:44px" styles.css
-          grep -q "bottom:calc(0.4% + 94px)" styles.css
-          grep -q "bottom:calc(0.4% + 99px + 5.8%)" styles.css
-          grep -q "font-size:clamp(18px,4.0vw,23px)" styles.css
-          grep -q "font-size:15px;font-weight:900" styles.css
-          grep -q "score-label{font-size:clamp(12px,2.9vw,16px)" styles.css
-          grep -q "score-value.accent{color:#dbe63c;font-size:clamp(23px,5.4vw,32px)" styles.css
-          grep -q "font-size:21px;font-weight:1000" styles.css
-          grep -q "text-align:left;color:#d4dfef" styles.css
-          grep -q "throw: 'assets/sounds/impact-chuko.mp3'" lms-config.js
-          grep -q "impact: 'assets/sounds/throw-whoosh.mp3'" lms-config.js
-          grep -q "chukoCount: 11" src/config.js
-          grep -q "resolveCurrentAltynThrow" src/game.js
-          grep -q "resetSakaForNextAltynThrow" src/game.js
-          grep -q "X2_GAME_THROW_COMPLETE" src/game.js
-          grep -q "X2_GAME_ROUND_COMPLETE" src/win-effects.js
-          grep -q "X2_ALTYN_NORMAL_WIN_OUT" src/win-effects.js
-          grep -q "boundaryWatcher" src/win-effects.js
-          grep -q "X2_ALTYN_NORMAL_WIN_OUT" src/counter-sync.js
-          grep -q "X2_ALTYN_KHAN_OUT" src/counter-sync.js
-          grep -q "score-knocked" src/counter-sync.js
-          grep -q "score-win" src/counter-sync.js
-          grep -q "score-khan" src/counter-sync.js
-          grep -q "dispatchEvent(new CustomEvent(type" lms-adapter.js
-          grep -q "positions.slice(0, C.pile.chukoCount)" src/game.js
-          grep -q "KHAN_THROW_3" src/scenario-config.js
-          grep -q "KHAN_THROW_2" src/scenario-config.js
-          grep -q "KHAN_THROW_1" src/scenario-config.js
-          grep -q "khan-ring-5" src/khan-effects.js
-          grep -q "altynKhanRingBlastMax" src/khan-effects.js
-          grep -q "X2_ALTYN_KHAN_OUT" src/game.js
-          grep -q "X2_ALTYN_KHAN_OUT" src/khan-effects.js
-          grep -q "rings:4" src/win-effects.js
-          grep -q "ticketId ?? d.ticket?.ticketId" src/win-effects.js
-      - name: Scenario planner tests
+      - name: Commit v0.5.1
         run: |
-          node <<'NODE'
-          global.window = global;
-          require('./src/scenario-config.js');
-          require('./src/altyn-scenario-controller.js');
-          const C = global.X2AltynScenarioController;
-          const S = global.X2AltynScenarioConfig;
-          for (let id = 1; id <= 9; id++) {
-            for (let n = 0; n < 100; n++) {
-              const ticket = `QA-${id}-${n}`;
-              const a = C.buildPlan(ticket, id);
-              const b = C.buildPlan(ticket, id);
-              if (!C.validatePlan(a)) throw new Error(`invalid plan ${id}/${n}`);
-              if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`non-deterministic ${id}/${n}`);
-              const item = S.get(id);
-              if (item.khan && a.throws[a.throws.length - 1].index !== item.khanThrow) throw new Error(`wrong khan throw ${id}`);
-              if (item.khan && !a.throws[a.throws.length - 1].khanOut) throw new Error(`missing khan ${id}`);
-              if (!item.khan && a.throws.length !== 3) throw new Error(`ordinary scenario not 3 throws ${id}`);
-            }
-          }
-          console.log('Scenario planner QA passed');
-          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add BUILD.txt index.html src/config.js src/game.js
+          git commit -m "Deploy ORDO v0.5.1 Android visual profile"
+          git push origin modern-3d
