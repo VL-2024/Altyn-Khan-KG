@@ -1,8 +1,9 @@
-/* ALTYN KHAN Modern 3D v0.4.1: clearly tiered ordinary-win effects. */
+/* ALTYN KHAN Modern 3D v0.4.2: immediate, clearly tiered ordinary-win effects. */
 (() => {
   'use strict';
 
   const S = window.X2AltynScenarioConfig || window.X2ChukoScenarioConfig;
+  const C = window.CHUKO3D_CONFIG || {};
   const levels = {
     0.5: { cls:'x05', rings:1, flashScale:1.05, ringScale:1.85, popScale:1.04, glow:.48 },
     1:   { cls:'x1',  rings:1, flashScale:1.18, ringScale:2.05, popScale:1.08, glow:.60 },
@@ -13,6 +14,7 @@
 
   let lastKey = '';
   let cleanupTimer = 0;
+  let activeTicket = null;
 
   function injectStyles() {
     if (document.getElementById('normal-win-fx-style')) return;
@@ -138,16 +140,112 @@
     }, 1450);
   }
 
-  function onRoundComplete(event) {
+  function rememberTicket(ticket) {
+    const scenario = Number(ticket?.scenario || 0);
+    const item = S?.get?.(scenario);
+    const multiplier = Number(item?.demoMultiplier ?? ticket?.multiplier ?? 0);
+    if (!item || item.khan || !levels[multiplier] || item.regularMode !== 'fixed') {
+      activeTicket = null;
+      return ticket;
+    }
+    activeTicket = {
+      ticketId: String(ticket?.ticketId || ''),
+      scenario,
+      multiplier,
+      targetRegular: Number(item.regular || 0),
+      armed: false,
+      fired: false
+    };
+    return ticket;
+  }
+
+  function hookTicketCreation() {
+    const lms = window.X2LMS;
+    if (!lms || lms.__altynNormalWinHooked) return;
+    ['createTicket', 'createDemoTicket'].forEach(name => {
+      const original = lms[name];
+      if (typeof original !== 'function') return;
+      lms[name] = async function(...args) {
+        const ticket = await original.apply(this, args);
+        rememberTicket(ticket);
+        return ticket;
+      };
+    });
+    lms.__altynNormalWinHooked = true;
+  }
+
+  function greenRingMetric(scene, mesh) {
+    const canvas = document.getElementById('renderCanvas');
+    const field = document.querySelector('.field-photo');
+    const camera = scene?.activeCamera;
+    const engine = scene?.getEngine?.();
+    if (!canvas || !field || !camera || !engine || !mesh) return null;
+    const rw = Math.max(1, engine.getRenderWidth());
+    const rh = Math.max(1, engine.getRenderHeight());
+    const viewport = camera.viewport.toGlobal(rw, rh);
+    const pos = mesh.getAbsolutePosition ? mesh.getAbsolutePosition() : mesh.position;
+    const projected = BABYLON.Vector3.Project(pos, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), viewport);
+    const canvasRect = canvas.getBoundingClientRect();
+    const fieldRect = field.getBoundingClientRect();
+    if (!canvasRect.width || !canvasRect.height || !fieldRect.width || !fieldRect.height) return null;
+    const x = canvasRect.left + projected.x * canvasRect.width / rw;
+    const y = canvasRect.top + projected.y * canvasRect.height / rh;
+    const cx = fieldRect.left + fieldRect.width * Number(C.game?.greenRingCx || 0.5075);
+    const cy = fieldRect.top + fieldRect.height * Number(C.game?.greenRingCy || 0.4692);
+    const rx = fieldRect.width * Number(C.game?.greenRingRx || 0.4140);
+    const ry = fieldRect.height * Number(C.game?.greenRingRy || 0.2945);
+    if (rx <= 1 || ry <= 1) return null;
+    return Math.hypot((x - cx) / rx, (y - cy) / ry);
+  }
+
+  function boundaryWatcher() {
+    const ticket = activeTicket;
+    if (ticket && !ticket.fired && ticket.targetRegular > 0) {
+      const scene = window.BABYLON?.EngineStore?.LastCreatedScene;
+      if (scene?.activeCamera) {
+        let outside = 0;
+        for (let i = 1; i <= Number(C.pile?.chukoCount || 11); i++) {
+          const mesh = scene.getMeshByName?.(`chuko-${i}`);
+          const metric = greenRingMetric(scene, mesh);
+          if (metric != null && Number.isFinite(metric) && metric >= 1.02) outside++;
+        }
+
+        // A new ticket can be received while the previous result is still on
+        // screen for a frame. Arm only after the new round is visibly below
+        // its final target count; then fire the instant the last required
+        // ordinary piece crosses the boundary on the final throw.
+        if (!ticket.armed) {
+          if (outside < ticket.targetRegular) ticket.armed = true;
+        } else if (outside >= ticket.targetRegular) {
+          ticket.fired = true;
+          window.dispatchEvent(new CustomEvent('X2_ALTYN_NORMAL_WIN_OUT', {
+            detail: {
+              ticketId: ticket.ticketId,
+              scenario: ticket.scenario,
+              multiplier: ticket.multiplier
+            }
+          }));
+        }
+      }
+    }
+    requestAnimationFrame(boundaryWatcher);
+  }
+
+  function onWinEvent(event) {
     const d = event.detail || {};
     const scenario = Number(d.scenario ?? d.ticket?.scenario ?? 0);
     const item = S?.get?.(scenario);
-    const multiplier = Number(item?.demoMultiplier ?? 0);
+    const multiplier = Number(d.multiplier ?? item?.demoMultiplier ?? 0);
     if (!item || item.khan || !levels[multiplier]) return;
     const ticketId = String(d.ticketId ?? d.ticket?.ticketId ?? `scenario-${scenario}-${Date.now()}`);
     requestAnimationFrame(() => show(multiplier, `${ticketId}:${scenario}`));
   }
 
   injectStyles();
-  window.addEventListener('X2_GAME_ROUND_COMPLETE', onRoundComplete);
+  hookTicketCreation();
+  requestAnimationFrame(boundaryWatcher);
+  // Primary trigger: boundary crossing, matching KHAN timing.
+  window.addEventListener('X2_ALTYN_NORMAL_WIN_OUT', onWinEvent);
+  // Safety fallback only; lastKey prevents a duplicate for the same ticket.
+  window.addEventListener('X2_GAME_ROUND_COMPLETE', onWinEvent);
 })();
