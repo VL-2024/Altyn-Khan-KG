@@ -71,7 +71,7 @@ jobs:
           v = vf.read_text(encoding='utf-8').replace('0.4.7', '0.4.9')
           marker = '          grep -q "version: \'0.4.9\'" src/config.js\n'
           extra = (
-              '          grep -q "legacy KHAN proxy" src/game.js\n'
+              '          grep -q "procedural KHAN proxy" src/game.js\n'
               '          ! grep -q "render both sides of KHAN surfaces only" src/game.js\n'
           )
           if extra not in v:
@@ -87,7 +87,7 @@ jobs:
           node --check src/config.js
           grep -q "X2_ALTYN_BUILD = '0.4.9'" index.html
           grep -q "version: '0.4.9'" src/config.js
-          grep -q "legacy KHAN proxy" src/game.js
+          grep -q "procedural KHAN proxy" src/game.js
           ! grep -q "render both sides of KHAN surfaces only" src/game.js
 
       - name: Commit v0.4.9
