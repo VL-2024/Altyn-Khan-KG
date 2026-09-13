@@ -1,0 +1,42 @@
+name: Adapt Altyn Khan UI text
+
+on:
+  push:
+    branches: [modern-3d]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: modern-3d
+      - name: Patch translations
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('src/i18n.js')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("title:            { RU:'ЧҮКӨ',                       EN:'CHUKO',                        KG:'ЧҮКӨ',                         ZH:'CHUKO' },", "title:            { RU:'АЛТЫН ХАН',                  EN:'ALTYN KHAN',                   KG:'АЛТЫН ХАН',                    ZH:'ALTYN KHAN' },")
+          s=s.replace("subtitle:         { RU:'Выбей Хана',                  EN:'Knock Out the Khan',           KG:'Ханды жык',                    ZH:'击败可汗' },", "subtitle:         { RU:'Modern 3D',                   EN:'Modern 3D',                    KG:'Modern 3D',                     ZH:'Modern 3D' },")
+          s=s.replace("RU:'Выбитые чүкө дают множитель — таблица выплат открывается кнопкой «Инфо».',", "RU:'Итоговое число выбитых чүкө определяет множитель — таблица выплат открывается кнопкой «Инфо».',")
+          s=s.replace("RU:'Если вместе с чүкө выбит ХАН, выигрыш дополнительно умножается на ×5.',", "RU:'ХАН: выбит 1-м броском — ×20, 2-м — ×15, 3-м — ×10.',")
+          s=s.replace("EN:'If KHAN is knocked out together with the chuko, the win is additionally multiplied by ×5.',", "EN:'KHAN: knocked out on throw 1 = ×20, throw 2 = ×15, throw 3 = ×10.',")
+          s=s.replace("KG:'Эгер чүкөлөр менен кошо ХАН чыкса, утуш дагы ×5ке көбөйөт.',", "KG:'ХАН: 1-ыргытууда чыкса ×20, 2-ыргытууда ×15, 3-ыргытууда ×10.',")
+          s=s.replace("ZH:'如果可汗与恰阔骨一起被击出，奖金将额外乘以×5。' },", "ZH:'可汗：第1次投掷击出×20，第2次×15，第3次×10。' },")
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Validate and commit
+        run: |
+          node --check src/i18n.js
+          grep -q "АЛТЫН ХАН" src/i18n.js
+          grep -q "×20" src/i18n.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/i18n.js
+          git commit -m "Adapt UI text for Altyn Khan Modern 3D"
+          git push origin modern-3d
