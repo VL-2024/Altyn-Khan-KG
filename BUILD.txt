@@ -1,5 +1,5 @@
-ALTYN KHAN Modern 3D build: 0.1.0
+ALTYN KHAN Modern 3D build: 0.2.0
 Base: CHUKO Modern 3D v9 / 0.13.21
-Source commit: 8c2077b185832b8913709f716fb09be3456617c6
-Stage: architecture + Altyn Khan scenario catalogue + deterministic throw planner
+Stage: multi-throw Round Controller (1..3 throws per LMS ticket)
+Scenario source: ALTYN KHAN 1..9
 Financial result source: LMS authoritative
