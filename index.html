@@ -40,8 +40,8 @@
   (function() {
     try {
       const u = new URL(location.href);
-      if (u.searchParams.get('build') !== '0.4.9') {
-        u.searchParams.set('build','0.4.9');
+      if (u.searchParams.get('build') !== '0.5.1') {
+        u.searchParams.set('build','0.5.1');
         location.replace(u.toString());
       }
     } catch (_) {}
