@@ -1,0 +1,99 @@
+name: Apply ORDO v0.4.9 black dot fix
+
+on:
+  push:
+    branches: [modern-3d]
+    paths:
+      - '.github/workflows/apply-v049.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: modern-3d
+          fetch-depth: 0
+
+      - name: Patch v0.4.9
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, count=None):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              if old not in s:
+                  raise SystemExit(f'Expected text not found in {path}: {old[:120]!r}')
+              s2 = s.replace(old, new) if count is None else s.replace(old, new, count)
+              p.write_text(s2, encoding='utf-8')
+
+          # Version/cache busting.
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('v0.4.8', 'v0.4.9')
+          s = s.replace("'0.4.8'", "'0.4.9'")
+          s = s.replace('ORDO v0.4.8 · UI spacing + typography · Babylon.js 9.25 + Havok',
+                        'ORDO v0.4.9 · KHAN legacy badge hidden · Babylon.js 9.25 + Havok')
+          p.write_text(s, encoding='utf-8')
+
+          replace_exact('src/config.js', "version: '0.4.8'", "version: '0.4.9'", 1)
+
+          Path('BUILD.txt').write_text(
+              'ORDO / ALTYN KHAN 3D build: 0.4.9\n'
+              'KHAN model: current in-game Meshy GLB retained\n'
+              'Fix: hide legacy procedural KHAN decorative child meshes (enamel plate + crest) whenever GLB visual is active\n'
+              'KHAN material: v0.4.8 two-sided/backFaceCulling test removed; imported material settings restored\n'
+              'Physics/scenarios/ballistics/LMS logic unchanged from v0.4.8\n',
+              encoding='utf-8')
+
+          game = Path('src/game.js')
+          s = game.read_text(encoding='utf-8')
+          old_backface = '''    // ORDO v0.4.8: render both sides of KHAN surfaces only.\n    // This tests whether the black circular artefact is caused by flipped normals.\n    if (warm) {\n      clone.backFaceCulling = false;\n      if ('twoSidedLighting' in clone) clone.twoSidedLighting = true;\n    }\n\n'''
+          if old_backface not in s:
+              raise SystemExit('v0.4.8 KHAN backFaceCulling test block not found')
+          s = s.replace(old_backface, '', 1)
+
+          anchor = '''    const visual = modelBank.ready ? createGlbVisual(role, name) : null;\n    mesh.isVisible = !visual;\n'''
+          patch = '''    const visual = modelBank.ready ? createGlbVisual(role, name) : null;\n    mesh.isVisible = !visual;\n\n    // ORDO v0.4.9: the procedural KHAN proxy carries its old decorative\n    // enamel plate/crest as child meshes. When the GLB visual is active, hiding\n    // only the proxy leaves those children visible above the imported model.\n    // Hide the legacy KHAN decoration as well; physics stays on the proxy.\n    if (role === 'khan' && visual && typeof mesh.getChildMeshes === 'function') {\n      mesh.getChildMeshes(false).forEach(child => {\n        child.isVisible = false;\n      });\n    }\n'''
+          if anchor not in s:
+              raise SystemExit('KHAN visual anchor not found')
+          s = s.replace(anchor, patch, 1)
+          game.write_text(s, encoding='utf-8')
+
+          # Keep permanent validator aligned with the deployed build.
+          vf = Path('.github/workflows/validate-modern3d-stage1.yml')
+          v = vf.read_text(encoding='utf-8').replace('0.4.7', '0.4.9')
+          marker = '          grep -q "version: \'0.4.9\'" src/config.js\n'
+          extra = (
+              '          grep -q "legacy KHAN proxy" src/game.js\n'
+              '          ! grep -q "render both sides of KHAN surfaces only" src/game.js\n'
+          )
+          if extra not in v:
+              if marker not in v:
+                  raise SystemExit('validator insertion marker not found')
+              v = v.replace(marker, marker + extra, 1)
+          vf.write_text(v, encoding='utf-8')
+          PY
+
+      - name: Syntax and v0.4.9 checks
+        run: |
+          node --check src/game.js
+          node --check src/config.js
+          grep -q "X2_ALTYN_BUILD = '0.4.9'" index.html
+          grep -q "version: '0.4.9'" src/config.js
+          grep -q "legacy KHAN proxy" src/game.js
+          ! grep -q "render both sides of KHAN surfaces only" src/game.js
+
+      - name: Commit v0.4.9
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add BUILD.txt index.html src/config.js src/game.js .github/workflows/validate-modern3d-stage1.yml
+          git commit -m "Deploy ORDO v0.4.9 black dot fix"
+          git push origin modern-3d
