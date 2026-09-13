@@ -7,7 +7,6 @@
   const AltynScenarioController = window.X2AltynScenarioController;
   const LMS_CFG = window.X2_GAME_CONFIG || {};
   const DICT = window.CHUKO_I18N || { RU: {} };
-  const ANDROID_VISUAL_BOOST = /Android/i.test(navigator.userAgent);
   const ui = {
     canvas: document.getElementById('renderCanvas'),
     fps: document.getElementById('fps'),
@@ -453,41 +452,31 @@
     if (!mat || typeof mat.clone !== 'function') return mat;
     const clone = mat.clone(`${mat.name || kind}-lift-${suffix}`);
     const warm = kind === 'khan';
-    const neutral = kind === 'chuko';
-    const android = ANDROID_VISUAL_BOOST;
-    const factor = android
-      ? (warm ? 1.52 : (neutral ? 1.27 : 1.34))
-      : (warm ? 1.36 : (neutral ? 1.14 : 1.22));
-    const lift = android
-      ? (warm ? 0.070 : (neutral ? 0.035 : 0.042))
-      : (warm ? 0.045 : (neutral ? 0.018 : 0.024));
+    const factor = warm ? 1.34 : 1.18;
+    const lift = warm ? 0.045 : 0.020;
 
     if (clone.albedoColor) clone.albedoColor = boostColor3(clone.albedoColor, factor, lift);
     if (clone.diffuseColor) clone.diffuseColor = boostColor3(clone.diffuseColor, factor, lift);
-    if (clone.specularColor) clone.specularColor = boostColor3(clone.specularColor, warm ? 1.06 : 1.04, 0.0);
-    if (clone.ambientColor) clone.ambientColor = boostColor3(clone.ambientColor, factor, lift * 0.4);
+    if (clone.specularColor) clone.specularColor = boostColor3(clone.specularColor, warm ? 1.14 : 1.04, 0.0);
+    if (clone.ambientColor) clone.ambientColor = boostColor3(clone.ambientColor, factor, lift * 0.55);
 
     if (clone.albedoTexture && 'level' in clone.albedoTexture) {
-      clone.albedoTexture.level = (clone.albedoTexture.level || 1) * (warm ? 1.10 : 1.08) * (android ? 1.10 : 1);
+      clone.albedoTexture.level = (clone.albedoTexture.level || 1) * (warm ? 1.18 : 1.08);
     }
     if (clone.diffuseTexture && 'level' in clone.diffuseTexture) {
-      clone.diffuseTexture.level = (clone.diffuseTexture.level || 1) * (warm ? 1.10 : 1.08) * (android ? 1.10 : 1);
+      clone.diffuseTexture.level = (clone.diffuseTexture.level || 1) * (warm ? 1.18 : 1.08);
     }
 
-    if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(warm ? 0.13 : 0.16, clone.roughness * (warm ? 0.78 : 0.88));
-    if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.34);
+    if ('roughness' in clone && Number.isFinite(clone.roughness)) {
+      clone.roughness = warm ? Math.max(0.08, clone.roughness * 0.68) : Math.max(0.16, clone.roughness * 0.88);
+    }
+    if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.42);
+    if ('environmentIntensity' in clone && Number.isFinite(clone.environmentIntensity) && warm) clone.environmentIntensity = Math.max(clone.environmentIntensity, 1.25);
+    if ('microSurface' in clone && Number.isFinite(clone.microSurface) && warm) clone.microSurface = Math.max(clone.microSurface, 0.74);
 
-    const emissiveLift = android
-      ? (warm
-          ? new BABYLON.Color3(0.22, 0.15, 0.055)
-          : (neutral
-              ? new BABYLON.Color3(0.050, 0.044, 0.034)
-              : new BABYLON.Color3(0.060, 0.082, 0.145)))
-      : (warm
-          ? new BABYLON.Color3(0.18, 0.125, 0.045)
-          : (neutral
-              ? new BABYLON.Color3(0.030, 0.026, 0.020)
-              : new BABYLON.Color3(0.045, 0.065, 0.12)));
+    const emissiveLift = warm
+      ? new BABYLON.Color3(0.17, 0.12, 0.05)
+      : new BABYLON.Color3(0.035, 0.055, 0.11);
 
     if (clone.emissiveColor) {
       clone.emissiveColor = new BABYLON.Color3(
@@ -503,6 +492,7 @@
   }
 
   function brightenImportedVisualMaterials(kind, meshes, suffix) {
+    if (kind !== 'khan' && kind !== 'saka') return;
     const cache = new Map();
     for (const mesh of meshes) {
       const mat = mesh?.material;
@@ -548,6 +538,15 @@
       root: rootClone,
       baseScale: 1 / template.bounds.maxExtent
     };
+    if (kind === 'khan') {
+      const glint = new BABYLON.PointLight(`${name}-glint`, new BABYLON.Vector3(0.18, 0.32, 0.20), scene);
+      glint.parent = anchor;
+      glint.intensity = 0.38;
+      glint.range = 2.15;
+      glint.diffuse = new BABYLON.Color3(1.00, 0.84, 0.46);
+      glint.specular = new BABYLON.Color3(1.00, 0.88, 0.58);
+      visual.glint = glint;
+    }
     applyVisualTuning(visual);
     return visual;
   }
@@ -593,6 +592,13 @@
       anchor.rotationQuaternion.copyFrom(item.mesh.rotationQuaternion);
     } else {
       anchor.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(item.mesh.rotation.x, item.mesh.rotation.y, item.mesh.rotation.z);
+    }
+    if (item.visual?.kind === 'khan' && item.visual.glint) {
+      const speed = readLinearVelocity(item.mesh.physicsBody).length();
+      const motion = Math.min(1, speed / 6);
+      const pulse = 0.5 + 0.5 * Math.sin((performance.now ? performance.now() : Date.now()) * 0.0042);
+      item.visual.glint.intensity = 0.24 + motion * 0.26 + pulse * 0.08;
+      item.visual.glint.position.set(0.16 + pulse * 0.05, 0.30 + motion * 0.05, 0.20);
     }
   }
 
@@ -1093,8 +1099,8 @@
     scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
     scene.imageProcessingConfiguration.toneMappingEnabled = true;
     scene.imageProcessingConfiguration.toneMappingType = BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-    scene.imageProcessingConfiguration.exposure = ANDROID_VISUAL_BOOST ? 1.20 : 1.08;
-    scene.imageProcessingConfiguration.contrast = ANDROID_VISUAL_BOOST ? 0.96 : 1.02;
+    scene.imageProcessingConfiguration.exposure = 1.02;
+    scene.imageProcessingConfiguration.contrast = 1.04;
     scene.fogMode = BABYLON.Scene.FOGMODE_NONE;
 
     const camera = new BABYLON.ArcRotateCamera(
@@ -1113,31 +1119,14 @@
     camera.inputs.clear();
 
     const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0.0, 1, -0.05), scene);
-    hemi.intensity = ANDROID_VISUAL_BOOST ? 1.22 : 1.00;
+    hemi.intensity = 0.88;
     hemi.diffuse = new BABYLON.Color3(0.92, 0.91, 0.88);
-    hemi.groundColor = ANDROID_VISUAL_BOOST
-      ? new BABYLON.Color3(0.40, 0.38, 0.34)
-      : new BABYLON.Color3(0.28, 0.27, 0.25);
+    hemi.groundColor = new BABYLON.Color3(0.20, 0.19, 0.18);
 
     const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-0.40, -1, 0.26), scene);
     sun.position = new BABYLON.Vector3(5, 8, -7);
-    sun.intensity = ANDROID_VISUAL_BOOST ? 1.48 : 1.58;
+    sun.intensity = 1.66;
     sun.diffuse = new BABYLON.Color3(1.0, 0.90, 0.72);
-
-    // Samsung/Android browsers can render the WebGL layer visibly darker than
-    // iOS Safari. Add a camera-side fill only on Android so iPhone keeps the
-    // approved v0.5.0 look while dark GLB faces on Android remain readable.
-    if (ANDROID_VISUAL_BOOST) {
-      const androidFill = new BABYLON.DirectionalLight(
-        'android-fill',
-        new BABYLON.Vector3(0.0, -0.62, -0.78),
-        scene
-      );
-      androidFill.position = new BABYLON.Vector3(0, 6, 6);
-      androidFill.intensity = 0.52;
-      androidFill.diffuse = new BABYLON.Color3(1.0, 0.96, 0.88);
-      androidFill.specular = new BABYLON.Color3(0.55, 0.53, 0.48);
-    }
 
     const shadowMapSize = isMobile() ? 512 : 1024;
     const shadows = new BABYLON.ShadowGenerator(shadowMapSize, sun);
@@ -1245,6 +1234,7 @@
         child.isVisible = false;
       });
     }
+
     bodies.push({ mesh, aggregate, role });
     return { mesh, aggregate, visual };
   }

@@ -1,5 +1,5 @@
-ORDO / ALTYN KHAN 3D build: 0.5.1
-Android/Samsung visual profile: stronger exposure and ambient fill, lower contrast
-Android-only camera-side fill light and brighter GLB material response
-iPhone/default rendering remains at v0.5.0 values
-KHAN remains +~10% visual size; physics/scenarios/ballistics/LMS unchanged
+ORDO / ALTYN KHAN 3D build: 0.5.2
+KHAN model: current in-game Meshy GLB retained
+Visual polish: KHAN scale +10%, lighter gold material, reduced roughness, stronger metallic, subtle warm emissive lift
+Visual polish: subtle warm glint light attached to KHAN; stronger while moving, softer at rest
+Physics/scenarios/ballistics/LMS logic unchanged from v0.4.9
