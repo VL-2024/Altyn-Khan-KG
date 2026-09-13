@@ -1,5 +1,5 @@
-ALTYN KHAN Modern 3D build: 0.2.0
+ALTYN KHAN Modern 3D build: 0.2.1
 Base: CHUKO Modern 3D v9 / 0.13.21
-Stage: multi-throw Round Controller (1..3 throws per LMS ticket)
+Stage: polished between-throw transition + smooth SAKA return
 Scenario source: ALTYN KHAN 1..9
 Financial result source: LMS authoritative

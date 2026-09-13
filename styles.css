@@ -333,3 +333,14 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   .hint{top:50%}
   .aim-power{top:56%}
 }
+
+
+/* ALTYN KHAN: subtle cue when SAKA has returned and the next throw is ready. */
+@keyframes altyn-next-throw-ready {
+  0% { transform: scale(1); filter: brightness(1); }
+  42% { transform: scale(1.025); filter: brightness(1.12); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+#action-btn.next-throw-ready {
+  animation: altyn-next-throw-ready .78s ease-out 1;
+}

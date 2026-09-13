@@ -1,5 +1,5 @@
 window.CHUKO3D_CONFIG = Object.freeze({
-  version: '0.2.0',
+  version: '0.2.1',
   sourceMechanic: 'CHUKO Modern 3D v9 / 0.13.21',
 
   field: {
@@ -131,6 +131,9 @@ window.CHUKO3D_CONFIG = Object.freeze({
     landingScreenMarginTop: 0.065,
     landingScreenMarginBottom: 0.120,
     deterministicScatter: true,
+    betweenThrowPauseMs: 320,
+    sakaReturnDurationMs: 420,
+    nextThrowPulseMs: 850,
     scatterInsideMetricMin: 0.38,
     scatterInsideMetricMax: 0.68,
     scatterInsideEdgeMetricMin: 0.70,
