@@ -15,14 +15,16 @@ jobs:
           node --check src/config.js
           node --check src/scenario-config.js
           node --check src/altyn-scenario-controller.js
+          node --check src/khan-effects.js
           node --check lms-adapter.js
           node --check lms-config.js
           node --check src/i18n.js
           node --check src/game.js
-      - name: Verify multi-throw wiring
+      - name: Verify multi-throw and KHAN wiring
         run: |
-          grep -q "X2_ALTYN_BUILD = '0.2.0'" index.html
+          grep -q "X2_ALTYN_BUILD = '0.3.0'" index.html
           grep -q "altyn-scenario-controller.js" index.html
+          grep -q "khan-effects.js" index.html
           grep -q "chukoCount: 11" src/config.js
           grep -q "resolveCurrentAltynThrow" src/game.js
           grep -q "resetSakaForNextAltynThrow" src/game.js
