@@ -1,7 +1,8 @@
-ALTYN KHAN Modern 3D build: 0.4.1
+ALTYN KHAN Modern 3D build: 0.4.2
 Base: CHUKO Modern 3D v9 / 0.13.21
-Stage: ordinary-win effects fixed and amplified
+Stage: immediate tiered ordinary-win effects
 Core mechanics: v0.3.2 stable flow retained
-Ordinary wins: x0.5 / x1 / x3 / x4 / x5 with progressive flash and rings
+Ordinary wins: effect starts on final boundary crossing, matching KHAN timing
+Visual tiers: x0.5 / x1 / x3 / x4 / x5
 KHAN: separate gold x10 / x15 / x20 finale retained
 Financial result source: LMS authoritative
