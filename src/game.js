@@ -264,7 +264,7 @@
     sakaZ: 2.85,
     chukoModelScale: 1.22,
     chukoModelY: -0.14,
-    khanModelScale: 0.98,
+    khanModelScale: 1.08,
     khanModelY: -0.15,
     sakaModelScale: 0.78,
     sakaModelY: 0.00,
@@ -452,26 +452,30 @@
     if (!mat || typeof mat.clone !== 'function') return mat;
     const clone = mat.clone(`${mat.name || kind}-lift-${suffix}`);
     const warm = kind === 'khan';
-    const factor = warm ? 1.24 : 1.18;
-    const lift = warm ? 0.028 : 0.020;
+    const factor = warm ? 1.34 : 1.18;
+    const lift = warm ? 0.045 : 0.020;
 
     if (clone.albedoColor) clone.albedoColor = boostColor3(clone.albedoColor, factor, lift);
     if (clone.diffuseColor) clone.diffuseColor = boostColor3(clone.diffuseColor, factor, lift);
-    if (clone.specularColor) clone.specularColor = boostColor3(clone.specularColor, warm ? 1.06 : 1.04, 0.0);
-    if (clone.ambientColor) clone.ambientColor = boostColor3(clone.ambientColor, factor, lift * 0.4);
+    if (clone.specularColor) clone.specularColor = boostColor3(clone.specularColor, warm ? 1.14 : 1.04, 0.0);
+    if (clone.ambientColor) clone.ambientColor = boostColor3(clone.ambientColor, factor, lift * 0.55);
 
     if (clone.albedoTexture && 'level' in clone.albedoTexture) {
-      clone.albedoTexture.level = (clone.albedoTexture.level || 1) * (warm ? 1.10 : 1.08);
+      clone.albedoTexture.level = (clone.albedoTexture.level || 1) * (warm ? 1.18 : 1.08);
     }
     if (clone.diffuseTexture && 'level' in clone.diffuseTexture) {
-      clone.diffuseTexture.level = (clone.diffuseTexture.level || 1) * (warm ? 1.10 : 1.08);
+      clone.diffuseTexture.level = (clone.diffuseTexture.level || 1) * (warm ? 1.18 : 1.08);
     }
 
-    if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(0.16, clone.roughness * 0.88);
-    if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.22);
+    if ('roughness' in clone && Number.isFinite(clone.roughness)) {
+      clone.roughness = warm ? Math.max(0.08, clone.roughness * 0.68) : Math.max(0.16, clone.roughness * 0.88);
+    }
+    if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.42);
+    if ('environmentIntensity' in clone && Number.isFinite(clone.environmentIntensity) && warm) clone.environmentIntensity = Math.max(clone.environmentIntensity, 1.25);
+    if ('microSurface' in clone && Number.isFinite(clone.microSurface) && warm) clone.microSurface = Math.max(clone.microSurface, 0.74);
 
     const emissiveLift = warm
-      ? new BABYLON.Color3(0.11, 0.075, 0.028)
+      ? new BABYLON.Color3(0.17, 0.12, 0.05)
       : new BABYLON.Color3(0.035, 0.055, 0.11);
 
     if (clone.emissiveColor) {
@@ -534,6 +538,15 @@
       root: rootClone,
       baseScale: 1 / template.bounds.maxExtent
     };
+    if (kind === 'khan') {
+      const glint = new BABYLON.PointLight(`${name}-glint`, new BABYLON.Vector3(0.18, 0.32, 0.20), scene);
+      glint.parent = anchor;
+      glint.intensity = 0.38;
+      glint.range = 2.15;
+      glint.diffuse = new BABYLON.Color3(1.00, 0.84, 0.46);
+      glint.specular = new BABYLON.Color3(1.00, 0.88, 0.58);
+      visual.glint = glint;
+    }
     applyVisualTuning(visual);
     return visual;
   }
@@ -579,6 +592,13 @@
       anchor.rotationQuaternion.copyFrom(item.mesh.rotationQuaternion);
     } else {
       anchor.rotationQuaternion = BABYLON.Quaternion.FromEulerAngles(item.mesh.rotation.x, item.mesh.rotation.y, item.mesh.rotation.z);
+    }
+    if (item.visual?.kind === 'khan' && item.visual.glint) {
+      const speed = readLinearVelocity(item.mesh.physicsBody).length();
+      const motion = Math.min(1, speed / 6);
+      const pulse = 0.5 + 0.5 * Math.sin((performance.now ? performance.now() : Date.now()) * 0.0042);
+      item.visual.glint.intensity = 0.24 + motion * 0.26 + pulse * 0.08;
+      item.visual.glint.position.set(0.16 + pulse * 0.05, 0.30 + motion * 0.05, 0.20);
     }
   }
 

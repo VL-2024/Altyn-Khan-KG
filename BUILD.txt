@@ -1,5 +1,5 @@
-ORDO / ALTYN KHAN 3D build: 0.4.9
+ORDO / ALTYN KHAN 3D build: 0.5.2
 KHAN model: current in-game Meshy GLB retained
-Fix: hide legacy procedural KHAN decorative child meshes (enamel plate + crest) whenever GLB visual is active
-KHAN material: v0.4.8 two-sided/backFaceCulling test removed; imported material settings restored
-Physics/scenarios/ballistics/LMS logic unchanged from v0.4.8
+Visual polish: KHAN scale +10%, lighter gold material, reduced roughness, stronger metallic, subtle warm emissive lift
+Visual polish: subtle warm glint light attached to KHAN; stronger while moving, softer at rest
+Physics/scenarios/ballistics/LMS logic unchanged from v0.4.9
