@@ -11,7 +11,6 @@ permissions:
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +32,6 @@ jobs:
               s = s.replace(old, new, count)
               p.write_text(s, encoding='utf-8')
 
-          # Version/cache busting.
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
           s = s.replace("X2_ALTYN_BUILD = '0.4.9'", "X2_ALTYN_BUILD = '0.5.0'")
@@ -42,19 +40,12 @@ jobs:
           p.write_text(s, encoding='utf-8')
 
           replace_exact('src/config.js', "version: '0.4.9'", "version: '0.5.0'")
-
-          # Slightly larger KHAN: +~10% visual size only. Physics proxy remains unchanged.
           replace_exact('src/game.js', '    khanModelScale: 0.98,', '    khanModelScale: 1.08,')
-
-          # More even, slightly brighter lighting across mobile browsers/devices.
           replace_exact('src/game.js', '    scene.imageProcessingConfiguration.exposure = 1.02;', '    scene.imageProcessingConfiguration.exposure = 1.08;')
           replace_exact('src/game.js', '    scene.imageProcessingConfiguration.contrast = 1.04;', '    scene.imageProcessingConfiguration.contrast = 1.02;')
           replace_exact('src/game.js', '    hemi.intensity = 0.88;', '    hemi.intensity = 1.00;')
           replace_exact('src/game.js', '    hemi.groundColor = new BABYLON.Color3(0.20, 0.19, 0.18);', '    hemi.groundColor = new BABYLON.Color3(0.28, 0.27, 0.25);')
           replace_exact('src/game.js', '    sun.intensity = 1.66;', '    sun.intensity = 1.58;')
-
-          # Imported GLB materials: apply a mild lift to ALL pieces so Samsung/Android
-          # does not read materially darker than iPhone; KHAN gets the strongest lift.
           replace_exact('src/game.js', "  function brightenImportedVisualMaterials(kind, meshes, suffix) {\n    if (kind !== 'khan' && kind !== 'saka') return;", "  function brightenImportedVisualMaterials(kind, meshes, suffix) {")
 
           old = """    const warm = kind === 'khan';
@@ -80,7 +71,6 @@ jobs:
 """
           replace_exact('src/game.js', old, new)
 
-          # Give KHAN a slightly cleaner golden response, without turning it neon.
           old = """    if ('roughness' in clone && Number.isFinite(clone.roughness)) clone.roughness = Math.max(0.16, clone.roughness * 0.88);
     if ('metallic' in clone && Number.isFinite(clone.metallic) && warm) clone.metallic = Math.max(clone.metallic, 0.22);
 """
