@@ -1,0 +1,90 @@
+  function currentAltynThrow() {
+    return altynRound.active && altynRound.plan?.throws
+      ? (altynRound.plan.throws[altynRound.throwIndex] || null)
+      : null;
+  }
+
+  function clearAltynRoundRuntime() {
+    altynRound.active = false;
+    altynRound.plan = null;
+    altynRound.throwIndex = 0;
+    altynRound.completedThrows = 0;
+    altynRound.outIds = new Set();
+    altynRound.khanOut = false;
+  }
+
+  function activateAltynThrow(index = altynRound.throwIndex) {
+    if (!altynRound.active || !altynRound.plan?.throws?.length) return false;
+    const safeIndex = Math.max(0, Math.min(altynRound.plan.throws.length - 1, Number(index) || 0));
+    altynRound.throwIndex = safeIndex;
+    const step = altynRound.plan.throws[safeIndex];
+    if (!step) return false;
+
+    scenarioRuntime.plan = {
+      regular: Number(step.regularOut || 0),
+      khan: Boolean(step.khanOut),
+      key: `${altynRound.plan.scenarioKey}_THROW_${step.index}`,
+      id: altynRound.plan.scenarioId,
+      throwIndex: step.index
+    };
+    scenarioRuntime.targetIds = new Set();
+    scenarioRuntime.targetDirections = new Map();
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanTarget = Boolean(step.khanOut);
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.seed = step.seed;
+    scenarioRuntime.impactAt = 0;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.visualValidation = null;
+    scenarioRuntime.active = true;
+    return true;
+  }
+
+  function prepareScenarioRuntime(ticket) {
+    if (!AltynScenarioController) throw new Error('ALTYN_SCENARIO_CONTROLLER_NOT_LOADED');
+    const fullPlan = AltynScenarioController.buildPlan(ticket?.ticketId, ticket?.scenario);
+    if (!AltynScenarioController.validatePlan(fullPlan)) throw new Error('ALTYN_SCENARIO_PLAN_INVALID');
+
+    altynRound.active = true;
+    altynRound.plan = fullPlan;
+    altynRound.throwIndex = 0;
+    altynRound.completedThrows = 0;
+    altynRound.outIds = new Set();
+    altynRound.khanOut = false;
+    activateAltynThrow(0);
+
+    console.info('[ALTYN] ticket throw plan', {
+      ticketId: ticket?.ticketId,
+      scenario: ticket?.scenario,
+      throws: fullPlan.throws.map(t => ({
+        index: t.index,
+        regularOut: t.regularOut,
+        khanOut: t.khanOut,
+        final: t.final
+      }))
+    });
+  }
+
+  function clearScenarioRuntime() {
+    scenarioRuntime.plan = null;
+    scenarioRuntime.targetIds = new Set();
+    scenarioRuntime.targetDirections = new Map();
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanTarget = false;
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.seed = '';
+    scenarioRuntime.impactAt = 0;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.visualValidation = null;
+    scenarioRuntime.active = false;
+    clearAltynRoundRuntime();
+  }
+
