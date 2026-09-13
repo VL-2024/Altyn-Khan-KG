@@ -33,7 +33,6 @@ jobs:
               s2 = s.replace(old, new) if count is None else s.replace(old, new, count)
               p.write_text(s2, encoding='utf-8')
 
-          # Version/cache busting.
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
           s = s.replace('v0.4.8', 'v0.4.9')
@@ -65,20 +64,6 @@ jobs:
               raise SystemExit('KHAN visual anchor not found')
           s = s.replace(anchor, patch, 1)
           game.write_text(s, encoding='utf-8')
-
-          # Keep permanent validator aligned with the deployed build.
-          vf = Path('.github/workflows/validate-modern3d-stage1.yml')
-          v = vf.read_text(encoding='utf-8').replace('0.4.7', '0.4.9')
-          marker = '          grep -q "version: \'0.4.9\'" src/config.js\n'
-          extra = (
-              '          grep -q "procedural KHAN proxy" src/game.js\n'
-              '          ! grep -q "render both sides of KHAN surfaces only" src/game.js\n'
-          )
-          if extra not in v:
-              if marker not in v:
-                  raise SystemExit('validator insertion marker not found')
-              v = v.replace(marker, marker + extra, 1)
-          vf.write_text(v, encoding='utf-8')
           PY
 
       - name: Syntax and v0.4.9 checks
@@ -94,6 +79,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add BUILD.txt index.html src/config.js src/game.js .github/workflows/validate-modern3d-stage1.yml
+          git add BUILD.txt index.html src/config.js src/game.js
           git commit -m "Deploy ORDO v0.4.9 black dot fix"
           git push origin modern-3d
