@@ -20,7 +20,7 @@ const TABLE = {
   subtitle:         { RU:'Modern 3D',                   EN:'Modern 3D',                    KG:'Modern 3D',                     ZH:'Modern 3D' },
 
   newGame:          { RU:'Новая игра',                 EN:'New Game',                     KG:'Жаңы оюн',                     ZH:'新游戏' },
-  makeThrow:        { RU:'Сделать бросок',              EN:'Throw',                        KG:'Ыргытуу',                      ZH:'投掷' },
+  makeThrow:        { RU:'Бросок',                       EN:'Throw',                        KG:'Ыргытуу',                      ZH:'投掷' },
   throwing:         { RU:'Бросок...',                  EN:'Throwing...',                  KG:'Ыргытуу...',                   ZH:'投掷中...' },
   loading:          { RU:'Загрузка...',                EN:'Loading...',                   KG:'Жүктөлүүдө...',                ZH:'加载中...' },
   retry:            { RU:'Повторить',                  EN:'Retry',                        KG:'Кайталоо',                     ZH:'重试' },
@@ -56,7 +56,7 @@ const TABLE = {
   balanceError:     { RU:'Ошибка загрузки баланса',      EN:'Failed to load balance',       KG:'Баланс жүктөлгөн жок',         ZH:'余额加载失败' },
 
   helpTitle:        { RU:'Как играть',                 EN:'How to Play',                  KG:'Кантип ойноо керек',           ZH:'游戏玩法' },
-  helpPull:         { RU:'Потяни САКА вниз и отпусти — или нажми «Сделать бросок».',
+  helpPull:         { RU:'Потяни САКА вниз и отпусти — или нажми «Бросок».',
                       EN:'Pull SAKA back and release - or tap "Throw".',
                       KG:'САКАНЫ ылдый тартып коё бер — же «Ыргытуу» баскычын бас.',
                       ZH:'向后拉动萨卡（SAKA）并松开——或点击"投掷"。' },
@@ -76,6 +76,10 @@ const TABLE = {
 
   // In-canvas gameplay hint bar (see ui.hint in game.js). {placeholders}
   // are substituted with trf() - see below.
+  hintThrowProgress:{ RU:'Бросок {current} из {total}',
+                      EN:'Throw {current} of {total}',
+                      KG:'Ыргытуу {current}/{total}',
+                      ZH:'投掷 {current}/{total}' },
   hintChooseDenom:  { RU:'Выберите номинал и нажмите «Новая игра»',
                       EN:'Choose a stake and tap "New Game"',
                       KG:'Коюмду тандап, «Жаңы оюн» баскычын басыңыз',

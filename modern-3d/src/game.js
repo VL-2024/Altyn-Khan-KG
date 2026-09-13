@@ -2789,8 +2789,71 @@
     if (!ui.hint || !altynRound.active || !altynRound.plan) return;
     const current = Math.min(altynRound.plan.throws.length, altynRound.throwIndex + 1);
     const total = altynRound.plan.throws.length;
-    const prefix = gameState.language === 'KG' ? 'Ыргытуу' : gameState.language === 'EN' ? 'Throw' : gameState.language === 'ZH' ? '投掷' : 'Бросок';
-    ui.hint.textContent = `${prefix} ${current}/${total}`;
+    setHint('hintThrowProgress', { current, total });
+  }
+
+  function waitMs(ms) {
+    return new Promise(resolve => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+  }
+
+  function animateSakaReturnToStart(durationMs) {
+    return new Promise(resolve => {
+      const item = roundPool.saka;
+      const mesh = item?.mesh;
+      if (!mesh) { resolve(); return; }
+
+      freezeItemAtCurrentPosition(item);
+      const from = mesh.position.clone();
+      const start = throwStartPoint();
+      const to = new BABYLON.Vector3(start.x, start.y, start.z);
+      const fromRot = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : BABYLON.Quaternion.Identity();
+      const toRot = BABYLON.Quaternion.FromEulerAngles(0.18, -0.45, 0.12);
+      const duration = Math.max(120, Number(durationMs) || 420);
+      const started = performance.now();
+
+      const frame = now => {
+        if (!altynRound.active || gameState.phase !== 'transition') { resolve(); return; }
+        const t = Math.max(0, Math.min(1, (now - started) / duration));
+        const ease = t * t * (3 - 2 * t);
+        mesh.position.x = from.x + (to.x - from.x) * ease;
+        mesh.position.y = from.y + (to.y - from.y) * ease;
+        mesh.position.z = from.z + (to.z - from.z) * ease;
+        if (!mesh.rotationQuaternion) mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+        BABYLON.Quaternion.SlerpToRef(fromRot, toRot, ease, mesh.rotationQuaternion);
+        mesh.computeWorldMatrix(true);
+        if (t < 1) requestAnimationFrame(frame);
+        else resolve();
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function transitionToNextAltynThrow() {
+    if (!altynRound.active || !altynRound.plan || gameState.resultShown) return;
+    const nextIndex = altynRound.throwIndex + 1;
+    if (nextIndex >= altynRound.plan.throws.length) { showGameResult(); return; }
+
+    altynRound.throwIndex = nextIndex;
+    activateAltynThrow(nextIndex);
+    gameState.phase = 'transition';
+    gameState.busy = true;
+    gameState.ticketReady = true;
+    hideAimVisuals();
+    if (ui.aimPower) ui.aimPower.hidden = true;
+    renderState();
+    setAltynThrowHint();
+
+    await waitMs(Number(C.game?.betweenThrowPauseMs ?? 320));
+    await animateSakaReturnToStart(Number(C.game?.sakaReturnDurationMs ?? 420));
+    if (!altynRound.active || gameState.resultShown || !gameState.ticket) return;
+
+    resetSakaForNextAltynThrow();
+    if (ui.action) {
+      ui.action.classList.remove('next-throw-ready');
+      void ui.action.offsetWidth;
+      ui.action.classList.add('next-throw-ready');
+      window.setTimeout(() => ui.action?.classList.remove('next-throw-ready'), Number(C.game?.nextThrowPulseMs ?? 850));
+    }
   }
 
   function resetSakaForNextAltynThrow() {
@@ -2862,9 +2925,7 @@
       return;
     }
 
-    altynRound.throwIndex += 1;
-    activateAltynThrow(altynRound.throwIndex);
-    resetSakaForNextAltynThrow();
+    transitionToNextAltynThrow();
   }
 
   function validateAltynTicketResult() {
@@ -3048,6 +3109,7 @@
       case 'settled': label = tr('newGame'); break;
       case 'requesting': label = tr('loading'); disabled = true; break;
       case 'ready': { const step=currentAltynThrow(); label = step ? `${tr('makeThrow')} ${step.index}/${altynRound.plan.throws.length}` : tr('makeThrow'); break; }
+      case 'transition': { const step=currentAltynThrow(); label = step ? `${tr('makeThrow')} ${step.index}/${altynRound.plan.throws.length}` : tr('makeThrow'); disabled = true; break; }
       case 'throwing': label = tr('throwing'); disabled = true; break;
       case 'loading': label = tr('loading'); disabled = true; break;
       case 'error': label = tr('retry'); break;
