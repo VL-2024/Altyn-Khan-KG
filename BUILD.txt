@@ -1,5 +1,6 @@
-ALTYN KHAN Modern 3D build: 0.2.1
+ALTYN KHAN Modern 3D build: 0.3.0
 Base: CHUKO Modern 3D v9 / 0.13.21
-Stage: polished between-throw transition + smooth SAKA return
-Scenario source: ALTYN KHAN 1..9
+Stage: KHAN scenarios 7-9 finale polish
+Core mechanics: v0.2.1 multi-throw flow retained
+KHAN result: throw 3 = x10, throw 2 = x15, throw 1 = x20
 Financial result source: LMS authoritative
