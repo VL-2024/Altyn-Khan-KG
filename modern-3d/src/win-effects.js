@@ -210,6 +210,10 @@
           if (metric != null && Number.isFinite(metric) && metric >= 1.02) outside++;
         }
 
+        // A new ticket can be received while the previous result is still on
+        // screen for a frame. Arm only after the new round is visibly below
+        // its final target count; then fire the instant the last required
+        // ordinary piece crosses the boundary on the final throw.
         if (!ticket.armed) {
           if (outside < ticket.targetRegular) ticket.armed = true;
         } else if (outside >= ticket.targetRegular) {
@@ -240,6 +244,8 @@
   injectStyles();
   hookTicketCreation();
   requestAnimationFrame(boundaryWatcher);
+  // Primary trigger: boundary crossing, matching KHAN timing.
   window.addEventListener('X2_ALTYN_NORMAL_WIN_OUT', onWinEvent);
+  // Safety fallback only; lastKey prevents a duplicate for the same ticket.
   window.addEventListener('X2_GAME_ROUND_COMPLETE', onWinEvent);
 })();

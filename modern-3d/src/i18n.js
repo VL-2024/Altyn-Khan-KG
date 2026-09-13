@@ -34,6 +34,7 @@ const TABLE = {
   knocked:          { RU:'ВЫБИТО',                     EN:'KNOCKED OUT',                  KG:'ЧЫКТЫ',                        ZH:'击出' },
   scoreWin:         { RU:'ВЫИГРЫШ',                    EN:'WIN',                          KG:'УТУШ',                         ZH:'奖金' },
   khan:             { RU:'ХАН',                        EN:'KHAN',                         KG:'ХАН',                          ZH:'可汗' },
+  khanPopup:        { RU:'ХАН!',                       EN:'WOW!',                         KG:'ХАН!',                         ZH:'哇！' },
   stood:            { RU:'УСТОЯЛ',                     EN:'STAYED IN',                    KG:'КАЛДЫ',                        ZH:'未击出' },
 
   info:             { RU:'Инфо',                       EN:'Info',                         KG:'Инфо',                         ZH:'信息' },
