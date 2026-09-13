@@ -1,4 +1,4 @@
-/* ALTYN KHAN Modern 3D v0.3.1 — amplified KHAN finale effects.
+/* ALTYN KHAN Modern 3D v0.3.2 — amplified KHAN finale effects.
  * Presentation-only layer. Financial result remains LMS-authoritative.
  */
 (() => {
@@ -119,16 +119,18 @@
     document.querySelector('.khan-moment')?.remove();
   }
 
-  function showMoment() {
+  function showMoment(detail = null) {
     const layer = document.getElementById('celebration-layer');
     if (!layer) return;
 
-    const ticket = ticketKey();
+    const eventTicket = detail?.ticketId ? `№ ${detail.ticketId}` : '';
+    const ticket = eventTicket || ticketKey();
     if (ticket && ticket !== '№ —' && ticket === lastTicket) return;
     if (ticket && ticket !== '№ —') lastTicket = ticket;
 
     clearMoment();
-    const multiplier = multiplierText();
+    const eventMultiplier = Number(detail?.multiplier || 0);
+    const multiplier = [10,15,20].includes(eventMultiplier) ? `×${eventMultiplier}` : multiplierText();
     const numeric = Number(multiplier.replace(/[^0-9.]/g, '')) || 10;
 
     const moment = document.createElement('div');
@@ -171,9 +173,13 @@
     const toast = document.getElementById('result-toast');
     if (!toast) return;
 
+    window.addEventListener('X2_ALTYN_KHAN_OUT', event => {
+      showMoment(event.detail || null);
+    });
+
     const check = () => {
       if (!toast.classList.contains('show') || !toast.classList.contains('khan-win')) return;
-      requestAnimationFrame(() => requestAnimationFrame(showMoment));
+      requestAnimationFrame(() => requestAnimationFrame(() => showMoment()));
     };
 
     new MutationObserver(check).observe(toast, {
