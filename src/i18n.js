@@ -16,8 +16,8 @@ const LANGS = ['RU', 'EN', 'KG', 'ZH'];
 
 const TABLE = {
   balance:          { RU:'Баланс',                    EN:'Balance',                      KG:'Баланс',                       ZH:'余额' },
-  title:            { RU:'АЛТЫН ХАН',                  EN:'ALTYN KHAN',                   KG:'АЛТЫН ХАН',                    ZH:'ALTYN KHAN' },
-  subtitle:         { RU:'Modern 3D',                   EN:'Modern 3D',                    KG:'Modern 3D',                     ZH:'Modern 3D' },
+  title:            { RU:'ОРДО', EN:'ORDO', KG:'ОРДО', ZH:'ORDO' },
+  subtitle:         { RU:'АЛТЫН ХАН 3D', EN:'ALTYN KHAN 3D', KG:'АЛТЫН ХАН 3D', ZH:'ALTYN KHAN 3D' },
 
   newGame:          { RU:'Новая игра',                 EN:'New Game',                     KG:'Жаңы оюн',                     ZH:'新游戏' },
   makeThrow:        { RU:'Бросок',                       EN:'Throw',                        KG:'Ыргытуу',                      ZH:'投掷' },
