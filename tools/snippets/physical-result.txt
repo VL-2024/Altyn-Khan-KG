@@ -1,0 +1,13 @@
+  function computePhysicalResult() {
+    if (altynRound.active) {
+      const ids = new Set(altynRound.outIds);
+      scenarioRuntime.outIds.forEach(id => ids.add(id));
+      return { out: ids.size, khanOut: Boolean(altynRound.khanOut || scenarioRuntime.khanOut) };
+    }
+    if (scenarioRuntime.active && scenarioRuntime.plan && (scenarioRuntime.scatterComplete || gameState.phase === 'settled')) {
+      return { out:Number(scenarioRuntime.plan.regular || 0), khanOut:Boolean(scenarioRuntime.plan.khan) };
+    }
+    if (scenarioRuntime.active && scenarioRuntime.plan) return { out:scenarioRuntime.outIds.size, khanOut:scenarioRuntime.khanOut };
+    return {out:0,khanOut:false};
+  }
+

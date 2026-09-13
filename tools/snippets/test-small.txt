@@ -1,0 +1,3 @@
+  function applyThrowState() {
+    scenarioRuntime.outIds.forEach(id => altynRound.outIds.add(id));
+  }

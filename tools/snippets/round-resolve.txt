@@ -1,0 +1,33 @@
+  function resolveCurrentAltynThrow() {
+    if (!gameState.ticket || gameState.phase !== 'throwing') return;
+    throwState.active = false;
+    finalizeScenarioVisual();
+    const visualCheck = validateFinalScenarioVisual(scenarioRuntime.plan);
+    applyCurrentAltynThrowState();
+
+    const step = currentAltynThrow();
+    LMS?.emit?.('X2_GAME_THROW_COMPLETE', {
+      gameId:LMS_CFG.gameId || 'ALTYN_KHAN',
+      ticketId:gameState.ticket.ticketId,
+      scenario:gameState.ticket.scenario,
+      throwIndex:Number(step?.index || altynRound.throwIndex + 1),
+      throwsTotal:Number(altynRound.plan?.throws?.length || 1),
+      regularOut:Number(step?.regularOut || 0),
+      regularOutTotal:altynRound.outIds.size,
+      khanOut:Boolean(step?.khanOut),
+      visualValid:Boolean(visualCheck.valid),
+      mode:gameState.mode
+    });
+
+    const isFinal = !step || step.final || step.khanOut || altynRound.throwIndex >= altynRound.plan.throws.length - 1;
+    if (isFinal) {
+      showGameResult();
+      setHint('hintResultLocked');
+      return;
+    }
+
+    altynRound.throwIndex += 1;
+    activateAltynThrow(altynRound.throwIndex);
+    resetSakaForNextAltynThrow();
+  }
+

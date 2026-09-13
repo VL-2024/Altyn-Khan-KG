@@ -1,0 +1,16 @@
+  function validateFinalScenarioVisual(plan=scenarioRuntime.plan) {
+    const actual = visualScenarioResult();
+    let expectedOut = Number(plan?.regular || 0);
+    let expectedKhan = Boolean(plan?.khan);
+    if (altynRound.active) {
+      const ids = new Set(altynRound.outIds);
+      scenarioRuntime.outIds.forEach(id => ids.add(id));
+      expectedOut = ids.size;
+      expectedKhan = Boolean(altynRound.khanOut || scenarioRuntime.khanOut || plan?.khan);
+    }
+    const valid = !!plan && actual.out === expectedOut && actual.khanOut === expectedKhan;
+    const result = { valid, actual, expected: { out: expectedOut, khanOut: expectedKhan } };
+    scenarioRuntime.visualValidation = result;
+    return result;
+  }
+

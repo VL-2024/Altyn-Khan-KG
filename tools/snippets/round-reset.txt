@@ -1,0 +1,41 @@
+  function resetSakaForNextAltynThrow() {
+    window.clearTimeout(resetTimer);
+    resetTimer = 0;
+    pileReleasedForThrow = false;
+    roundPhysicsFrozen = false;
+    thrown = false;
+    throwState = { active:false, targetPoint:null, guideDir:null, power:0, impactBoosted:false, flightTime:0 };
+    scenarioRuntime.scatterStartedAt = 0;
+    scenarioRuntime.scatterActive = false;
+    scenarioRuntime.scatterComplete = false;
+    scenarioRuntime.flightPlan = [];
+    scenarioRuntime.outIds = new Set();
+    scenarioRuntime.khanOut = false;
+    scenarioRuntime.targetsLockedAtImpact = false;
+    [...roundPool.chukos, roundPool.khan].filter(Boolean).forEach(freezeItemAtCurrentPosition);
+    saka = roundPool.saka?.mesh || saka;
+    sakaAggregate = roundPool.saka?.aggregate || sakaAggregate;
+    if (roundPool.saka) {
+      queueBodyTransformReset(
+        roundPool.saka,
+        (() => { const start = throwStartPoint(); return new BABYLON.Vector3(start.x, start.y, start.z); })(),
+        BABYLON.Quaternion.FromEulerAngles(0.18, -0.45, 0.12),
+        false
+      );
+    }
+    resetAimState();
+    hideAimVisuals();
+    if (ui.aimPower) ui.aimPower.hidden = true;
+    const defaultGeo = aimGeometry();
+    const defaultPoint = snapLandingPointToNearestChuko({ x:defaultGeo.center.x, z:defaultGeo.center.z });
+    aimState.power = 0.58;
+    aimState.guideDir = defaultGeo.toCenter;
+    aimState.targetPoint = defaultPoint;
+    gameState.phase = 'ready';
+    gameState.ticketReady = true;
+    gameState.busy = false;
+    renderState();
+    setAltynThrowHint();
+    if (autoPlay.active) scheduleAutoThrow();
+  }
+

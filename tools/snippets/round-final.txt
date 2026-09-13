@@ -1,0 +1,56 @@
+  function validateAltynTicketResult() {
+    const item = ScenarioCfg?.getOrDefault(gameState.ticket?.scenario);
+    const physical = { out:altynRound.outIds.size, khanOut:altynRound.khanOut };
+    if (!item) return { valid:false, physical, reason:'scenario-missing' };
+    let valid = true;
+    if (item.khan) valid = physical.khanOut === true;
+    else if (item.regularMode === 'range') valid = physical.out >= Number(item.regularMin) && physical.out <= Number(item.regularMax) && !physical.khanOut;
+    else valid = physical.out === Number(item.regular || 0) && !physical.khanOut;
+    return { valid, physical, scenario:item.id };
+  }
+
+  function showGameResult() {
+    if (!roundPool.initialized || gameState.resultShown || !gameState.ticket) return;
+    finalizeScenarioVisual();
+    applyCurrentAltynThrowState();
+    const finalCheck = validateAltynTicketResult();
+    const scenarioItem = ScenarioCfg?.getOrDefault(gameState.ticket.scenario);
+    gameState.resultShown = true;
+
+    if (gameState.pendingBalance != null && Number.isFinite(gameState.pendingBalance)) {
+      if (gameState.mode === 'demo') {
+        gameState.balance = gameState.balance + Number(gameState.ticket.win || 0);
+        gameState.demoBalance = gameState.balance;
+      } else {
+        gameState.balance = Number(gameState.pendingBalance);
+        gameState.realBalance = gameState.balance;
+      }
+    }
+
+    gameState.phase = 'settled';
+    gameState.ticketReady = false;
+    gameState.busy = false;
+    showResultToast();
+    saveCompletedTicketLocally(gameState.ticket, gameState.mode);
+    maybeNudgeDemoBadge();
+    renderState();
+    LMS?.emit?.('X2_GAME_ROUND_COMPLETE', {
+      gameId:LMS_CFG.gameId || 'ALTYN_KHAN',
+      ticketId:gameState.ticket.ticketId,
+      scenario:gameState.ticket.scenario,
+      scenarioKey:scenarioItem?.key || gameState.ticket.scenarioKey,
+      win:Number(gameState.ticket.win || 0),
+      balance:gameState.balance,
+      denomination:gameState.denomination,
+      currency:gameState.currency,
+      currencyDisplay:gameState.currencyDisplay,
+      language:gameState.language,
+      mode:gameState.mode,
+      throwsCompleted:altynRound.completedThrows,
+      regularOut:altynRound.outIds.size,
+      khanOut:altynRound.khanOut,
+      visualValid:finalCheck.valid
+    });
+    handleAutoRoundComplete();
+  }
+
