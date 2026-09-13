@@ -1,78 +1,10 @@
-name: Apply v0.4.5
+name: Apply v0.4.5 (disabled helper)
+
 on:
-  push:
-    branches: [modern-3d]
-permissions:
-  contents: write
+  workflow_dispatch:
+
 jobs:
-  apply:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Patch files
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          v='0.4.5'
-          p=Path('src/i18n.js');s=p.read_text()
-          s=re.sub(r"  title:\s*\{[^\n]+\},","  title:            { RU:'ОРДО', EN:'ORDO', KG:'ОРДО', ZH:'ORDO' },",s,1)
-          s=re.sub(r"  subtitle:\s*\{[^\n]+\},","  subtitle:         { RU:'АЛТЫН ХАН 3D', EN:'ALTYN KHAN 3D', KG:'АЛТЫН ХАН 3D', ZH:'ALTYN KHAN 3D' },",s,1)
-          p.write_text(s)
-          p=Path('index.html');s=p.read_text();s=s.replace('0.4.4',v)
-          s=s.replace('<title>АЛТЫН ХАН Modern 3D — v0.4.5</title>','<title>ОРДО — АЛТЫН ХАН 3D · v0.4.5</title>')
-          s=s.replace('data-i18n="title">АЛТЫН ХАН</div><div class="game-title-sub" data-i18n="subtitle">Modern 3D</div>','data-i18n="title">ОРДО</div><div class="game-title-sub" data-i18n="subtitle">АЛТЫН ХАН 3D</div>')
-          p.write_text(s)
-          p=Path('src/config.js');s=p.read_text();s=re.sub(r"version: '0\.4\.\d+'",f"version: '{v}'",s,1);p.write_text(s)
-          p=Path('lms-config.js');s=p.read_text();s=s.replace("throw: 'assets/sounds/throw-whoosh.mp3',\n      impact: 'assets/sounds/impact-chuko.mp3',","throw: 'assets/sounds/impact-chuko.mp3',\n      impact: 'assets/sounds/throw-whoosh.mp3',",1);p.write_text(s)
-          p=Path('styles.css');s=p.read_text()
-          s=s.replace('.brand-logo{height:clamp(26px,6.4vw,40px);width:auto;max-width:15%;display:block;object-fit:contain;flex:0 0 auto}', '.brand-logo{height:clamp(52px,12.8vw,80px);width:auto;max-width:28%;display:block;object-fit:contain;flex:0 0 auto}',1)
-          s=s.replace('height:30px;\n  display:grid;grid-template-columns:minmax(0,76%) minmax(0,24%);\n  align-items:center;gap:0;z-index:12;pointer-events:auto','height:40px;\n  display:flex;align-items:center;gap:8px;z-index:12;pointer-events:auto',1)
-          s=s.replace('.bottom-controls{min-width:0;display:flex;align-items:center;gap:5px}', '.bottom-controls{min-width:0;display:flex;align-items:center;gap:7px;flex:0 0 auto}',1)
-          s=s.replace('min-width:50px;padding:5px 7px;background:transparent;color:#8196b2;font-weight:900;font-size:11px','min-width:60px;padding:8px 10px;background:transparent;color:#8196b2;font-weight:950;font-size:14px',1)
-          s=s.replace('min-width:64px;height:30px;padding:0 12px','min-width:78px;height:38px;padding:0 15px',1).replace('color:#dbe63c;font-size:12px;font-weight:950','color:#dbe63c;font-size:15px;font-weight:950',1)
-          s=s.replace('flex:0 0 34px;width:34px;height:30px','flex:0 0 42px;width:42px;height:38px',1).replace('color:#7f91aa;font-size:17px;font-weight:950','color:#7f91aa;font-size:21px;font-weight:950',1)
-          s=s.replace('margin-left:0;max-width:none;width:100%;padding:0 0 0 8px','margin-left:2px;max-width:none;width:auto;flex:1 1 auto;padding:0',1).replace('white-space:nowrap;text-align:right;color:#aebed3;font-size:clamp(9px,2.0vw,12px);font-weight:800;line-height:30px','white-space:nowrap;text-align:left;color:#d4dfef;font-size:clamp(12px,2.8vw,16px);font-weight:900;line-height:40px',1)
-          s=s.replace('left:14%;right:14%;bottom:calc(0.4% + 36px);\n  height:22px;','left:10%;right:10%;bottom:calc(0.4% + 48px);\n  height:28px;',1)
-          s=s.replace('font-size:clamp(11px,2.6vw,14px);font-weight:750','font-size:clamp(14px,3.4vw,18px);font-weight:850',1)
-          s=s.replace('flex:0 0 16px;width:16px;height:16px','flex:0 0 20px;width:20px;height:20px',1)
-          p.write_text(s)
-          Path('BUILD.txt').write_text('ORDO / ALTYN KHAN 3D build: 0.4.5\nUI: larger REAL/DEMO/Info/audio controls, larger hint and ticket text, ticket moved next to controls\nLogo: 2x\nAudio: SAKA flight and chuko impact assignments swapped\nCore mechanics unchanged\n')
-          PY
-      - name: Check
-        run: |
-          node --check src/i18n.js
-          node --check lms-config.js
-          grep -q "X2_ALTYN_BUILD = '0.4.5'" index.html
-          grep -q "ОРДО" src/i18n.js
-          grep -q "throw: 'assets/sounds/impact-chuko.mp3'" lms-config.js
-          grep -q "height:clamp(52px,12.8vw,80px)" styles.css
-      - name: Commit source
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html styles.css src/i18n.js src/config.js lms-config.js BUILD.txt
-          git commit -m "ORDO v0.4.5 UI branding audio"
-          git push origin modern-3d
-      - name: Deploy preview
-        run: |
-          git worktree add /tmp/gh origin/gh-pages
-          rm -rf /tmp/gh/modern-3d
-          mkdir -p /tmp/gh/modern-3d
-          rsync -a --exclude='.git' --exclude='.github' ./ /tmp/gh/modern-3d/
-          cd /tmp/gh
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add modern-3d
-          git commit -m "Deploy ORDO v0.4.5"
-          git push origin HEAD:gh-pages
-      - name: Build archive
-        run: zip -qr /tmp/ordo-altyn-khan-3d-v0.4.5.zip . -x '.git/*' '.github/*'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ordo-altyn-khan-3d-v0.4.5
-          path: /tmp/ordo-altyn-khan-3d-v0.4.5.zip
-          retention-days: 30
+      - run: echo "v0.4.5 helper is disabled"
