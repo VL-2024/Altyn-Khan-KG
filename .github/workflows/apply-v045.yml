@@ -1,58 +1,10 @@
-name: Finalize v0.4.6
+name: v0.4.6 helper (disabled)
+
 on:
-  push:
-    branches: [modern-3d]
-permissions:
-  contents: write
+  workflow_dispatch:
+
 jobs:
-  apply:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Chain score above action row
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('styles.css'); s=p.read_text()
-          old='.score{position:absolute;left:6.0%;right:6.0%;top:78.3%;height:6.2%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}'
-          new='.score{position:absolute;left:6.0%;right:6.0%;top:auto;bottom:calc(0.4% + 97px + 5.8%);height:6.2%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}'
-          if old in s: s=s.replace(old,new,1)
-          p.write_text(s)
-          PY
-      - name: Verify
-        run: |
-          grep -q "X2_ALTYN_BUILD = '0.4.6'" index.html
-          grep -q "bottom:calc(0.4% + 45px)" styles.css
-          grep -q "bottom:calc(0.4% + 92px)" styles.css
-          grep -q "bottom:calc(0.4% + 97px + 5.8%)" styles.css
-          grep -q "score-label{font-size:clamp(10px,2.4vw,14px)" styles.css
-      - name: Commit source if needed
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add styles.css
-          git diff --cached --quiet || git commit -m "ORDO v0.4.6 finalize stacked UI spacing"
-          git diff --cached --quiet && git push origin modern-3d || true
-          if git rev-parse HEAD^ >/dev/null 2>&1; then git push origin modern-3d; fi
-      - name: Deploy preview
-        run: |
-          git worktree add /tmp/gh origin/gh-pages
-          rm -rf /tmp/gh/modern-3d
-          mkdir -p /tmp/gh/modern-3d
-          rsync -a --exclude='.git' --exclude='.github' ./ /tmp/gh/modern-3d/
-          cd /tmp/gh
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add modern-3d
-          git diff --cached --quiet || git commit -m "Deploy ORDO v0.4.6 final spacing"
-          git push origin HEAD:gh-pages
-      - name: Build archive
-        run: zip -qr /tmp/ordo-altyn-khan-3d-v0.4.6.zip . -x '.git/*' '.github/*'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ordo-altyn-khan-3d-v0.4.6-final
-          path: /tmp/ordo-altyn-khan-3d-v0.4.6.zip
-          retention-days: 30
+      - run: echo "v0.4.6 helper is disabled"
