@@ -1,4 +1,4 @@
-name: Validate Altyn Khan Modern 3D stage 1
+name: Validate Altyn Khan Modern 3D
 
 on:
   push:
@@ -16,13 +16,41 @@ jobs:
           node --check src/scenario-config.js
           node --check src/altyn-scenario-controller.js
           node --check lms-adapter.js
+          node --check lms-config.js
           node --check src/i18n.js
           node --check src/game.js
-      - name: Verify stage 1 wiring
+      - name: Verify multi-throw wiring
         run: |
-          grep -q "X2_ALTYN_BUILD = '0.1.0'" index.html
+          grep -q "X2_ALTYN_BUILD = '0.2.0'" index.html
           grep -q "altyn-scenario-controller.js" index.html
           grep -q "chukoCount: 11" src/config.js
+          grep -q "resolveCurrentAltynThrow" src/game.js
+          grep -q "resetSakaForNextAltynThrow" src/game.js
+          grep -q "X2_GAME_THROW_COMPLETE" src/game.js
+          grep -q "positions.slice(0, C.pile.chukoCount)" src/game.js
           grep -q "KHAN_THROW_3" src/scenario-config.js
           grep -q "KHAN_THROW_2" src/scenario-config.js
           grep -q "KHAN_THROW_1" src/scenario-config.js
+      - name: Scenario planner tests
+        run: |
+          node <<'NODE'
+          global.window = global;
+          require('./src/scenario-config.js');
+          require('./src/altyn-scenario-controller.js');
+          const C = global.X2AltynScenarioController;
+          const S = global.X2AltynScenarioConfig;
+          for (let id = 1; id <= 9; id++) {
+            for (let n = 0; n < 100; n++) {
+              const ticket = `QA-${id}-${n}`;
+              const a = C.buildPlan(ticket, id);
+              const b = C.buildPlan(ticket, id);
+              if (!C.validatePlan(a)) throw new Error(`invalid plan ${id}/${n}`);
+              if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`non-deterministic ${id}/${n}`);
+              const item = S.get(id);
+              if (item.khan && a.throws[a.throws.length - 1].index !== item.khanThrow) throw new Error(`wrong khan throw ${id}`);
+              if (item.khan && !a.throws[a.throws.length - 1].khanOut) throw new Error(`missing khan ${id}`);
+              if (!item.khan && a.throws.length !== 3) throw new Error(`ordinary scenario not 3 throws ${id}`);
+            }
+          }
+          console.log('Scenario planner QA passed');
+          NODE
