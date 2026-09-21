@@ -12,8 +12,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>ОРДО — АЛТЫН ХАН 3D · v0.5.3</title>
-<link rel="stylesheet" href="styles.css?v=0.5.3">
+<title>ОРДО — АЛТЫН ХАН 3D · v0.5.4</title>
+<link rel="stylesheet" href="styles.css?v=0.5.4">
 <style id="shell-size-style"></style>
 <script>
 (function () {
@@ -39,12 +39,12 @@
 })();
 </script>
 <script>
-  window.X2_ALTYN_BUILD = '0.5.3';
+  window.X2_ALTYN_BUILD = '0.5.4';
   (function() {
     try {
       const u = new URL(location.href);
-      if (u.searchParams.get('build') !== '0.5.3') {
-        u.searchParams.set('build','0.5.3');
+      if (u.searchParams.get('build') !== '0.5.4') {
+        u.searchParams.set('build','0.5.4');
         location.replace(u.toString());
       }
     } catch (_) {}
@@ -88,21 +88,107 @@
     <div class="hint-bar" id="hint-bar"><span class="hint-text" id="hint-text">Потяните САКА назад и отпустите</span><button class="hint-toggle" id="hint-toggle" type="button" aria-label="Скрыть подсказку">×</button></div>
     <section class="perf" id="perfPanel" aria-live="polite"><div><span>FPS</span><strong id="fps">—</strong></div><div><span>frame</span><strong id="frameMs">— ms</strong></div><div><span>bodies</span><strong id="bodyCount">—</strong></div><div><span>scale</span><strong id="renderScale">—</strong></div></section>
     <div class="fatal" id="fatal" hidden><strong>Не удалось запустить игру</strong><span id="fatalText"></span></div>
-    <div class="debug">ORDO v0.5.3 · KHAN visual polish · Babylon.js 9.25 + Havok</div>
+    <div class="debug">ORDO v0.5.4 · KHAN visual polish · Babylon.js 9.25 + Havok</div>
+
+    <!-- Dev-only tuning panel: never shown to players by default (closed on
+         load, toggled only via #tuneBtn). Sliders write into localStorage
+         via src/game.js (bindTuner()) - see TUNE_DEFAULTS there for the
+         full key list and applyDomTuning()/applyCameraTuning() for how
+         each key is applied. -->
+    <button class="clickable" id="tuneBtn" type="button" aria-expanded="false">⚙ НАСТРОЙКА</button>
+    <div class="tune-panel" id="tunePanel" hidden>
+      <div class="tune-panel-head">
+        <strong>UI / 3D тюнинг (dev)</strong>
+        <div class="tune-panel-actions">
+          <button id="tuneDefaultsBtn" type="button">Сброс</button>
+          <button id="tuneCopyBtn" type="button">Копия</button>
+          <button id="tuneCloseBtn" type="button" aria-label="Закрыть">×</button>
+        </div>
+      </div>
+
+      <details class="tune-group">
+        <summary>Логотип</summary>
+        <div class="tune-row"><label>Масштаб</label><input type="range" data-tune="uiLogoScale" min="0.3" max="3" step="0.01"><output data-out="uiLogoScale"></output></div>
+        <div class="tune-row"><label>Сдвиг X</label><input type="range" data-tune="uiLogoX" min="-200" max="200" step="1"><output data-out="uiLogoX"></output></div>
+        <div class="tune-row"><label>Сдвиг Y</label><input type="range" data-tune="uiLogoY" min="-200" max="200" step="1"><output data-out="uiLogoY"></output></div>
+      </details>
+
+      <details class="tune-group">
+        <summary>Заголовок / плашки / шрифты</summary>
+        <div class="tune-row"><label>Заголовок</label><input type="range" data-tune="uiTitleScale" min="0.3" max="3" step="0.01"><output data-out="uiTitleScale"></output></div>
+        <div class="tune-row"><label>Кошелёк (плашка)</label><input type="range" data-tune="uiWalletScale" min="0.3" max="3" step="0.01"><output data-out="uiWalletScale"></output></div>
+        <div class="tune-row"><label>Кошелёк (шрифт)</label><input type="range" data-tune="uiWalletFontScale" min="0.3" max="3" step="0.01"><output data-out="uiWalletFontScale"></output></div>
+        <div class="tune-row"><label>Подсказка (шрифт)</label><input type="range" data-tune="uiHintFontScale" min="0.3" max="3" step="0.01"><output data-out="uiHintFontScale"></output></div>
+        <div class="tune-row"><label>Счёт (плашка)</label><input type="range" data-tune="uiScoreScale" min="0.3" max="3" step="0.01"><output data-out="uiScoreScale"></output></div>
+        <div class="tune-row"><label>Счёт (шрифт)</label><input type="range" data-tune="uiScoreFontScale" min="0.3" max="3" step="0.01"><output data-out="uiScoreFontScale"></output></div>
+        <div class="tune-row"><label>Нижняя панель (шрифт)</label><input type="range" data-tune="uiBottomFontScale" min="0.3" max="3" step="0.01"><output data-out="uiBottomFontScale"></output></div>
+        <div class="tune-row"><label>Кнопки хода (плашка)</label><input type="range" data-tune="uiActionScale" min="0.3" max="3" step="0.01"><output data-out="uiActionScale"></output></div>
+        <div class="tune-row"><label>Кнопки хода (шрифт)</label><input type="range" data-tune="uiActionFontScale" min="0.3" max="3" step="0.01"><output data-out="uiActionFontScale"></output></div>
+      </details>
+
+      <details class="tune-group">
+        <summary>Ковёр / фон (3D)</summary>
+        <div class="tune-row"><label>Ширина ковра</label><input type="range" data-tune="fieldWidth" min="40" max="140" step="1"><output data-out="fieldWidth"></output></div>
+        <div class="tune-row"><label>Ковёр Y (низ)</label><input type="range" data-tune="fieldBottom" min="0" max="600" step="1"><output data-out="fieldBottom"></output></div>
+        <div class="tune-row"><label>Ковёр X</label><input type="range" data-tune="fieldX" min="-200" max="200" step="1"><output data-out="fieldX"></output></div>
+        <div class="tune-row"><label>Фон масштаб</label><input type="range" data-tune="bgScale" min="0.5" max="2" step="0.01"><output data-out="bgScale"></output></div>
+        <div class="tune-row"><label>Фон X</label><input type="range" data-tune="bgX" min="-200" max="200" step="1"><output data-out="bgX"></output></div>
+        <div class="tune-row"><label>Фон Y</label><input type="range" data-tune="bgY" min="-300" max="300" step="1"><output data-out="bgY"></output></div>
+      </details>
+
+      <details class="tune-group">
+        <summary>Раскладка фишек</summary>
+        <div class="tune-row"><label>Куча X</label><input type="range" data-tune="pileX" min="-2" max="2" step="0.01"><output data-out="pileX"></output></div>
+        <div class="tune-row"><label>Куча Z</label><input type="range" data-tune="pileZ" min="-4" max="4" step="0.01"><output data-out="pileZ"></output></div>
+        <div class="tune-row"><label>Разброс-центр X</label><input type="range" data-tune="scatterPivotX" min="-2" max="2" step="0.01"><output data-out="scatterPivotX"></output></div>
+        <div class="tune-row"><label>Разброс-центр Z</label><input type="range" data-tune="scatterPivotZ" min="-4" max="4" step="0.01"><output data-out="scatterPivotZ"></output></div>
+        <div class="tune-row"><label>Разброс X</label><input type="range" data-tune="spreadX" min="0" max="3" step="0.01"><output data-out="spreadX"></output></div>
+        <div class="tune-row"><label>Разброс Z</label><input type="range" data-tune="spreadZ" min="0" max="3" step="0.01"><output data-out="spreadZ"></output></div>
+        <div class="tune-row"><label>Масштаб ЧҮКӨ</label><input type="range" data-tune="chukoScale" min="0.1" max="2" step="0.01"><output data-out="chukoScale"></output></div>
+      </details>
+
+      <details class="tune-group">
+        <summary>Камера</summary>
+        <div class="tune-row"><label>Радиус</label><input type="range" data-tune="cameraRadius" min="2" max="20" step="0.05"><output data-out="cameraRadius"></output></div>
+        <div class="tune-row"><label>Цель X</label><input type="range" data-tune="cameraTargetX" min="-3" max="3" step="0.01"><output data-out="cameraTargetX"></output></div>
+        <div class="tune-row"><label>Цель Z</label><input type="range" data-tune="cameraTargetZ" min="-3" max="3" step="0.01"><output data-out="cameraTargetZ"></output></div>
+      </details>
+
+      <details class="tune-group">
+        <summary>САКА (бросок)</summary>
+        <div class="tune-row"><label>Старт X</label><input type="range" data-tune="sakaX" min="-2" max="2" step="0.01"><output data-out="sakaX"></output></div>
+        <div class="tune-row"><label>Старт Z</label><input type="range" data-tune="sakaZ" min="-4" max="6" step="0.01"><output data-out="sakaZ"></output></div>
+      </details>
+
+      <details class="tune-group">
+        <summary>3D модели</summary>
+        <div class="tune-row"><label>ЧҮКӨ масштаб</label><input type="range" data-tune="chukoModelScale" min="0.2" max="3" step="0.01"><output data-out="chukoModelScale"></output></div>
+        <div class="tune-row"><label>ЧҮКӨ Y</label><input type="range" data-tune="chukoModelY" min="-2" max="2" step="0.01"><output data-out="chukoModelY"></output></div>
+        <div class="tune-row"><label>ХАН масштаб</label><input type="range" data-tune="khanModelScale" min="0.2" max="3" step="0.01"><output data-out="khanModelScale"></output></div>
+        <div class="tune-row"><label>ХАН Y</label><input type="range" data-tune="khanModelY" min="-2" max="2" step="0.01"><output data-out="khanModelY"></output></div>
+        <div class="tune-row"><label>САКА масштаб</label><input type="range" data-tune="sakaModelScale" min="0.2" max="3" step="0.01"><output data-out="sakaModelScale"></output></div>
+        <div class="tune-row"><label>САКА Y</label><input type="range" data-tune="sakaModelY" min="-2" max="2" step="0.01"><output data-out="sakaModelY"></output></div>
+        <div class="tune-row"><label>САКА рысканье</label><input type="range" data-tune="sakaModelYawDeg" min="-180" max="180" step="1"><output data-out="sakaModelYawDeg"></output></div>
+        <div class="tune-row"><label>САКА тангаж</label><input type="range" data-tune="sakaModelPitchDeg" min="-180" max="180" step="1"><output data-out="sakaModelPitchDeg"></output></div>
+        <div class="tune-row"><label>САКА крен</label><input type="range" data-tune="sakaModelRollDeg" min="-180" max="180" step="1"><output data-out="sakaModelRollDeg"></output></div>
+      </details>
+
+      <textarea id="tuneOutput" readonly></textarea>
+    </div>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs@9.25.0/babylon.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@9.25.0/babylonjs.loaders.min.js"></script>
 <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
-<script src="src/config.js?v=0.5.3"></script>
-<script src="lms-config.js?v=0.5.3"></script>
-<script src="src/scenario-config.js?v=0.5.3"></script>
-<script src="src/altyn-scenario-controller.js?v=0.5.3"></script>
-<script src="lms-adapter.js?v=0.5.3"></script>
-<script src="src/i18n.js?v=0.5.3"></script>
-<script src="src/game.js?v=0.5.3"></script>
-<script src="src/khan-effects.js?v=0.5.3"></script>
-<script src="src/win-effects.js?v=0.5.3"></script>
-<script src="src/counter-sync.js?v=0.5.3"></script>
+<script src="src/config.js?v=0.5.4"></script>
+<script src="lms-config.js?v=0.5.4"></script>
+<script src="src/scenario-config.js?v=0.5.4"></script>
+<script src="src/altyn-scenario-controller.js?v=0.5.4"></script>
+<script src="lms-adapter.js?v=0.5.4"></script>
+<script src="src/i18n.js?v=0.5.4"></script>
+<script src="src/game.js?v=0.5.4"></script>
+<script src="src/khan-effects.js?v=0.5.4"></script>
+<script src="src/win-effects.js?v=0.5.4"></script>
+<script src="src/counter-sync.js?v=0.5.4"></script>
 </body>
 </html>

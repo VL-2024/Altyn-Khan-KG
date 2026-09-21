@@ -271,7 +271,22 @@
     sakaModelY: 0.00,
     sakaModelYawDeg: 0,
     sakaModelPitchDeg: -100,
-    sakaModelRollDeg: -90
+    sakaModelRollDeg: -90,
+    // --- 2D UI overlay tuning (fonts/plates/logo positions - CSS-only, no
+    // effect on the 3D scene) - see applyDomTuning() and the matching
+    // --ui-* custom properties consumed in styles.css. ---
+    uiLogoScale: 1,
+    uiLogoX: 0,
+    uiLogoY: 0,
+    uiTitleScale: 1,
+    uiWalletScale: 1,
+    uiWalletFontScale: 1,
+    uiHintFontScale: 1,
+    uiScoreScale: 1,
+    uiScoreFontScale: 1,
+    uiBottomFontScale: 1,
+    uiActionScale: 1,
+    uiActionFontScale: 1
   });
 
   function loadTuning() {
@@ -638,6 +653,19 @@
     root.style.setProperty('--bg-x', `${(Number(tuning.bgX) * scaleW).toFixed(2)}px`);
     root.style.setProperty('--bg-y', `${(Number(tuning.bgY) * scaleH).toFixed(2)}px`);
     updatePileShadow();
+
+    root.style.setProperty('--ui-logo-scale', String(Number(tuning.uiLogoScale)));
+    root.style.setProperty('--ui-logo-x', `${(Number(tuning.uiLogoX) * scaleW).toFixed(2)}px`);
+    root.style.setProperty('--ui-logo-y', `${(Number(tuning.uiLogoY) * scaleH).toFixed(2)}px`);
+    root.style.setProperty('--ui-title-scale', String(Number(tuning.uiTitleScale)));
+    root.style.setProperty('--ui-wallet-scale', String(Number(tuning.uiWalletScale)));
+    root.style.setProperty('--ui-wallet-font-scale', String(Number(tuning.uiWalletFontScale)));
+    root.style.setProperty('--ui-hint-font-scale', String(Number(tuning.uiHintFontScale)));
+    root.style.setProperty('--ui-score-scale', String(Number(tuning.uiScoreScale)));
+    root.style.setProperty('--ui-score-font-scale', String(Number(tuning.uiScoreFontScale)));
+    root.style.setProperty('--ui-bottom-font-scale', String(Number(tuning.uiBottomFontScale)));
+    root.style.setProperty('--ui-action-scale', String(Number(tuning.uiActionScale)));
+    root.style.setProperty('--ui-action-font-scale', String(Number(tuning.uiActionFontScale)));
   }
 
   function applyCameraTuning() {
@@ -667,9 +695,13 @@
   function tuneNumberLabel(key, value) {
     const v = Number(value);
     if (['fieldWidth'].includes(key)) return `${Math.round(v)}%`;
-    if (['fieldBottom','fieldX','bgX','bgY'].includes(key)) return `${Math.round(v)}px`;
-    if (['bgScale','chukoScale','chukoModelScale','khanModelScale','sakaModelScale'].includes(key)) return `${v.toFixed(2)}×`;
-    if (['sakaModelYawDeg','sakaModelPitchDeg','sakaModelRollDeg'].includes(key)) return `${Math.round(v)}°`; 
+    if (['fieldBottom','fieldX','bgX','bgY','uiLogoX','uiLogoY'].includes(key)) return `${Math.round(v)}px`;
+    if ([
+      'bgScale','chukoScale','chukoModelScale','khanModelScale','sakaModelScale',
+      'uiLogoScale','uiTitleScale','uiWalletScale','uiWalletFontScale','uiHintFontScale',
+      'uiScoreScale','uiScoreFontScale','uiBottomFontScale','uiActionScale','uiActionFontScale'
+    ].includes(key)) return `${v.toFixed(2)}×`;
+    if (['sakaModelYawDeg','sakaModelPitchDeg','sakaModelRollDeg'].includes(key)) return `${Math.round(v)}°`;
     if (key === 'cameraRadius') return v.toFixed(2);
     return v.toFixed(2);
   }
