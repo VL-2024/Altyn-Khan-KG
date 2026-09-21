@@ -1,12 +1,9 @@
-ORDO / ALTYN KHAN 3D build: 0.5.5
-Tuning panel follow-up per user feedback (panel was covering the field,
-making it impossible to see the result of a slider while dragging it):
-- #tunePanel background made mostly transparent (~0.2 alpha) so the 3D
-  field/carpet stays visible underneath; text/controls keep a strong
-  text-shadow for contrast so the panel stays readable over any background.
-- Added position sliders (X/Y) for the game title (uiTitleX/uiTitleY,
-  translating .game-title-inline) and the wallet plate (uiWalletX/uiWalletY,
-  translating .wallet) - previously only their scale was tunable, not their
-  position.
-All new offsets default to 0px (no visual change until moved). 43 unique
-[data-tune] keys total now (was 39 in v0.5.4).
+ORDO / ALTYN KHAN 3D build: 0.5.6
+Baked the user's live-tuned values (from "Копия" JSON on the tuning panel,
+tested on a real host where the Babylon CDN is reachable) into
+TUNE_DEFAULTS in src/game.js, replacing the placeholder v0.5.4 defaults.
+Every one of the 43 tuning keys now ships as the tuned look out of the box
+for a fresh player (no localStorage) - carpet/pile/camera/model placement
+plus the 2D UI overlay (logo/title/wallet position+scale, hint/score/
+bottom/action font+plate scale). No code changes beyond the default
+values themselves; the tuning panel and its slider ranges are unchanged.
