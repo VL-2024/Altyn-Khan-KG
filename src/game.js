@@ -279,7 +279,11 @@
     uiLogoX: 0,
     uiLogoY: 0,
     uiTitleScale: 1,
+    uiTitleX: 0,
+    uiTitleY: 0,
     uiWalletScale: 1,
+    uiWalletX: 0,
+    uiWalletY: 0,
     uiWalletFontScale: 1,
     uiHintFontScale: 1,
     uiScoreScale: 1,
@@ -658,7 +662,11 @@
     root.style.setProperty('--ui-logo-x', `${(Number(tuning.uiLogoX) * scaleW).toFixed(2)}px`);
     root.style.setProperty('--ui-logo-y', `${(Number(tuning.uiLogoY) * scaleH).toFixed(2)}px`);
     root.style.setProperty('--ui-title-scale', String(Number(tuning.uiTitleScale)));
+    root.style.setProperty('--ui-title-x', `${(Number(tuning.uiTitleX) * scaleW).toFixed(2)}px`);
+    root.style.setProperty('--ui-title-y', `${(Number(tuning.uiTitleY) * scaleH).toFixed(2)}px`);
     root.style.setProperty('--ui-wallet-scale', String(Number(tuning.uiWalletScale)));
+    root.style.setProperty('--ui-wallet-x', `${(Number(tuning.uiWalletX) * scaleW).toFixed(2)}px`);
+    root.style.setProperty('--ui-wallet-y', `${(Number(tuning.uiWalletY) * scaleH).toFixed(2)}px`);
     root.style.setProperty('--ui-wallet-font-scale', String(Number(tuning.uiWalletFontScale)));
     root.style.setProperty('--ui-hint-font-scale', String(Number(tuning.uiHintFontScale)));
     root.style.setProperty('--ui-score-scale', String(Number(tuning.uiScoreScale)));
@@ -695,7 +703,7 @@
   function tuneNumberLabel(key, value) {
     const v = Number(value);
     if (['fieldWidth'].includes(key)) return `${Math.round(v)}%`;
-    if (['fieldBottom','fieldX','bgX','bgY','uiLogoX','uiLogoY'].includes(key)) return `${Math.round(v)}px`;
+    if (['fieldBottom','fieldX','bgX','bgY','uiLogoX','uiLogoY','uiTitleX','uiTitleY','uiWalletX','uiWalletY'].includes(key)) return `${Math.round(v)}px`;
     if ([
       'bgScale','chukoScale','chukoModelScale','khanModelScale','sakaModelScale',
       'uiLogoScale','uiTitleScale','uiWalletScale','uiWalletFontScale','uiHintFontScale',

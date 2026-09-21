@@ -1,19 +1,12 @@
-ORDO / ALTYN KHAN 3D build: 0.5.4
-Added a dev-only UI/3D tuning panel (#tuneBtn/#tunePanel in index.html),
-exposing every existing TUNE_DEFAULTS key (carpet position/size, background
-position/scale, pile/scatter-pivot position, spread, chuko scale, camera
-radius/target, saka throw-start point, per-model chuko/khan/saka GLB
-scale/position/yaw/pitch/roll - 27 keys, previously coded in src/game.js
-but with no HTML ever wired to them) as grouped range sliders, plus 12 new
-"ui*" keys (uiLogoScale/X/Y, uiTitleScale, uiWalletScale/FontScale,
-uiHintFontScale, uiScoreScale/FontScale, uiBottomFontScale,
-uiActionScale/FontScale) driving new --ui-* CSS custom properties in
-styles.css to scale/offset the game logo, titles, wallet plate, hint text,
-score plate, bottom-tools text and action-row plate/text independently of
-the 3D scene. All new CSS multipliers default to neutral (scale 1 / offset
-0px) so the on-screen layout is pixel-identical to v0.5.3 until a slider is
-moved. Values persist to localStorage (same TUNE_STORAGE_KEY as before) and
-via "Копия" can be copied as JSON for hand-porting into TUNE_DEFAULTS once
-final numbers are picked. Hidden by default - never shown to players unless
-#tuneBtn is tapped.
-Visual/physics/ballistics/LMS integration otherwise unchanged from v0.5.3.
+ORDO / ALTYN KHAN 3D build: 0.5.5
+Tuning panel follow-up per user feedback (panel was covering the field,
+making it impossible to see the result of a slider while dragging it):
+- #tunePanel background made mostly transparent (~0.2 alpha) so the 3D
+  field/carpet stays visible underneath; text/controls keep a strong
+  text-shadow for contrast so the panel stays readable over any background.
+- Added position sliders (X/Y) for the game title (uiTitleX/uiTitleY,
+  translating .game-title-inline) and the wallet plate (uiWalletX/uiWalletY,
+  translating .wallet) - previously only their scale was tunable, not their
+  position.
+All new offsets default to 0px (no visual change until moved). 43 unique
+[data-tune] keys total now (was 39 in v0.5.4).
