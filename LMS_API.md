@@ -2,6 +2,19 @@
 
 Этот файл описывает фактический контракт текущего `lms-adapter.js`.
 
+> **Обновлено по образцу Mahjong Luck / Upay / ЧҮКӨ-ОРДО (та же общая
+> X2-интеграция, синхронизировано по их итогам):** авторизация теперь
+> через cookie (`sessionMode: 'cookie'`), а не через postMessage-токен
+> (см. §2/§3 ниже — их рекомендация уже устарела); `scenario` в ответе
+> PayTicket реально приходит массивом `[id, 0]`, а не голым числом (см.
+> §6); `Method=Balance` для keep-alive сессии существует (было
+> задокументировано как несуществующее — см. §4). Также: таблица
+> scenario mapping в §7 не совпадает с актуальным
+> `src/scenario-config.js` (там id 1..9 с другими ключами/множителями) —
+> этот документ, судя по всему, писался под более раннюю версию
+> сценариев и не обновлялся вместе с ней; сверяйте §7 с
+> `scenario-config.js` напрямую, а не с этим файлом.
+
 ## 1. Источник истины
 
 В REAL режиме LMS определяет:
@@ -23,7 +36,7 @@ balance
 
 ```js
 initMode: 'postMessage'
-sessionMode: 'postMessage'
+sessionMode: 'cookie'
 mock: false
 ```
 
@@ -66,31 +79,36 @@ mock: false
 
 ## 3. Session
 
-При `sessionMode:'postMessage'` session передаётся в `X2_LMS_INIT.session` или отдельным:
-
-```js
-{ type:'X2_LMS_SESSION', session:'...' }
-```
-
-По умолчанию adapter передаёт session в:
-
-```http
-X-Session-ID: <session>
-```
-
-Название задаётся `sessionHeader`.
-
-`fetch` выполняется с:
+При `sessionMode:'cookie'` (текущий рекомендуемый режим) отдельного
+токена нет вовсе — авторизация идёт через cookie браузера, `fetch`
+выполняется с:
 
 ```js
 credentials:'include'
 ```
 
+**Условие:** игра должна быть развёрнута на том же домене, что и сам
+сайт LMS — иначе браузер (Safari ITP, SameSite) не пришлёт cookie в
+кросс-доменном iframe, и все запросы будут молча уходить
+неавторизованными.
+
+Если вместо этого используется `sessionMode:'postMessage'` (устаревший
+режим, оставлен для совместимости), session передаётся в
+`X2_LMS_INIT.session` или отдельным:
+
+```js
+{ type:'X2_LMS_SESSION', session:'...' }
+```
+
+и adapter передаёт его в заголовке (имя задаётся `sessionHeader`):
+
+```http
+X-Session-ID: <session>
+```
+
 ---
 
-## 4. Первоначальный баланс
-
-Отдельный balance endpoint в нормальном игровом цикле не используется.
+## 4. Баланс: старт, PayTicket и keep-alive
 
 REAL initial balance должен прийти в:
 
@@ -99,6 +117,46 @@ X2_LMS_INIT.balance
 ```
 
 После каждого билета новый точный баланс обязан прийти в PayTicket response.
+
+**Отдельный эндпоинт «получить баланс» существует** — `Method=Balance`
+(в отличие от того, что было написано здесь раньше). Тот же URL, что и
+PayTicket (`cfg.endpoints.newGame`), только `Method=Balance`:
+
+```
+GET <endpoints.newGame>?Method=Balance&idIG=<idIG>&idSK=<idSK>
+```
+
+| Параметр | Тип | Обязательный | Описание |
+|---|---|---|---|
+| `Method` | string | да | Всегда `Balance`. |
+| `idIG` | number | — | Идентификатор игрока. |
+| `idSK` | number | нет | Идентификатор счёта — если передан, в ответе только этот счёт, иначе все счета игрока. |
+
+Успешный ответ:
+```json
+{ "idIG": "идентификатор игрока", "Accounts": [
+  { "idSK": "идентификатор счета", "Balans": "остаток на счете",
+    "Bonus": "остаток бонусов", "played_out": "отыграно бонусов",
+    "Currency": "валюта" }
+] }
+```
+Ошибка — судя по документации, **HTTP 200** с телом `{"Error": "..."}`
+(не статус-код, как у PayTicket из §5) — уточните, если это не так.
+
+Игра дёргает `Method=Balance` раз в ~5 минут (`X2LMS.getBalance()` +
+`startBalancePolling()` в `src/game.js`) — пока вкладка открыта и видна,
+без активного розыгрыша — не для отображения баланса как такового, а
+чтобы держать LMS-сессию живой: любой авторизованный запрос сбрасывает
+15-минутный таймер неактивности сессии (подтверждено бэкендом), а без
+этого игрок, отвлёкшийся более чем на 15 минут, мог бы упереться в
+протухшую сессию на следующем PayTicket, хотя его логин на сайте живёт
+30 дней.
+
+**Открытый вопрос:** PayTicket обходится без `idIG` — игрок
+определяется по cookie-сессии. Нужно подтвердить, что `Method=Balance`
+ведёт себя так же (сессии достаточно, `idIG` можно не передавать), либо
+прислать, как игре получить `idIG` (например, добавить в
+`X2_LMS_INIT`) — сейчас игра его никак не получает.
 
 ---
 
@@ -127,7 +185,7 @@ GET /api/Lotto.Users.cls?Method=PayTicket&gameId=137&amount=25
 ```json
 {
   "ticketId": "T-123456",
-  "scenario": 3,
+  "scenario": [3, 0],
   "win": 50,
   "balance": 1425,
   "currency": "KGS",
@@ -136,12 +194,19 @@ GET /api/Lotto.Users.cls?Method=PayTicket&gameId=137&amount=25
 }
 ```
 
+**`scenario` реально приходит массивом `[id, unused]`** (подтверждено
+бэкендом для той же линейки X2 LOTO), не голым числом, как показано в
+исходном контракте. Используется только первый элемент; второй эта
+игра не задействует и игнорирует. Adapter (`normalizeTicket()` в
+`lms-adapter.js`) на всякий случай всё ещё принимает и голое число
+тоже, для обратной совместимости.
+
 Допускаемые aliases adapter:
 
 | Значение | Поддерживаемые ключи |
 |---|---|
 | ticket | `ticketId`, `ticket_id`, `ticketNumber`, `ticket_number` |
-| scenario | `scenario`, `scenarioId`, `scenario_id`, `scenarioKey` |
+| scenario | `scenario` (массив `[id, unused]` или голое число), `scenarioId`, `scenario_id`, `scenarioKey` |
 | win | `win`, `prize`, `winAmount` |
 | balance | `balance`, `newBalance`, `balanceAfterGame` |
 

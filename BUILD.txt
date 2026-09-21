@@ -1,5 +1,9 @@
-ORDO / ALTYN KHAN 3D build: 0.5.2
-KHAN model: current in-game Meshy GLB retained
-Visual polish: KHAN scale +10%, lighter gold material, reduced roughness, stronger metallic, subtle warm emissive lift
-Visual polish: subtle warm glint light attached to KHAN; stronger while moving, softer at rest
-Physics/scenarios/ballistics/LMS logic unchanged from v0.4.9
+ORDO / ALTYN KHAN 3D build: 0.5.3
+LMS integration synced with sibling X2 LOTO games (Mahjong Luck / Upay / ЧҮКӨ-ОРДО):
+sessionMode postMessage -> cookie, scenario response parsed as [id, unused]
+array, Method=Balance keep-alive polling wired up (was defined in
+lms-adapter.js but never called), Method=Balance request/response shape
+corrected to match the real backend contract (single Method=-based
+endpoint, idIG/idSK, Accounts/Balans response shape) instead of the old
+placeholder REST-style /api/lms/player/balance path.
+Visual/physics/ballistics unchanged from v0.5.2 (KHAN visual polish).

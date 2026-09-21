@@ -78,7 +78,13 @@
         mode:data.mode,
         demoAllowed:data.demoAllowed,
         demoBalance:data.demoBalance,
-        balance:data.balance
+        balance:data.balance,
+        // Not part of the documented X2_LMS_INIT contract yet — only needed
+        // for the Method=Balance keep-alive poll below. Accepted here in
+        // case LMS starts sending them; falls back to the ?idIG=/?idSK=
+        // query params (see getBalance()) until confirmed with the backend.
+        idIG:data.idIG,
+        idSK:data.idSK
       };
       if (data.session) {
         session = String(data.session);
@@ -150,19 +156,39 @@
     } finally { clearTimeout(timeout); }
   }
 
+  // Normalizes the (internal, non-X2-specific) Method=Balance response:
+  // { idIG, Accounts: [{ idSK, Balans, Bonus, played_out, Currency }, ...] }
+  // — note "Balans", not "Balance", per the backend's own doc. Picks the
+  // account matching our configured currency; falls back to the first one
+  // if the response only ever has a single account (e.g. idSK was passed).
   function normalizeBalance(data, requestedCurrency) {
+    if (data && typeof data.Error === 'string') throw makeError('BAD_BALANCE_RESPONSE', data.Error);
+    const accounts = Array.isArray(data && data.Accounts) ? data.Accounts : null;
+    const cur = String(requestedCurrency || cfg.currency || 'KGS').toUpperCase();
+    if (accounts) {
+      const account = accounts.find(a => String(a.Currency || '').toUpperCase() === cur) || accounts[0];
+      const balance = Number(account && (account.Balans ?? account.Balance ?? account.balans ?? account.balance));
+      if (!Number.isFinite(balance)) throw makeError('BAD_BALANCE_RESPONSE','LMS balance response has no numeric balance');
+      return {balance, currency:cur, currencyDisplay:cfg.currencyDisplay || cur};
+    }
+    // Bare {balance:...} shape kept as a fallback for compatibility.
     const balance = Number(data.balance ?? data.newBalance);
     if (!Number.isFinite(balance)) throw makeError('BAD_BALANCE_RESPONSE','LMS balance response has no numeric balance');
     return {
       balance,
-      currency:String(data.currency || requestedCurrency || cfg.currency || 'KGS').toUpperCase(),
-      currencyDisplay:data.currencyDisplay || data.currencyLabel || data.currencySymbol || cfg.currencyDisplay || requestedCurrency
+      currency:String(data.currency || cur).toUpperCase(),
+      currencyDisplay:data.currencyDisplay || data.currencyLabel || data.currencySymbol || cfg.currencyDisplay || cur
     };
   }
 
   function normalizeTicket(data, requested) {
     const ticketId = data.ticketId ?? data.ticket_id ?? data.ticketNumber ?? data.ticket_number;
-    const scenarioItem = scenarioCfg.get(data.scenario ?? data.scenarioId ?? data.scenario_id ?? data.scenarioKey);
+    // LMS sends `scenario` as a 2-element array [scenarioId, <unused>] — the
+    // second element isn't meaningful to this game and is ignored; only the
+    // first is the actual scenario id. Still accept a bare number/string
+    // too, in case that ever changes back.
+    const scenarioRaw = Array.isArray(data.scenario) ? data.scenario[0] : (data.scenario ?? data.scenarioId ?? data.scenario_id ?? data.scenarioKey);
+    const scenarioItem = scenarioCfg.get(scenarioRaw);
     const win = Number(data.win ?? data.prize ?? data.winAmount ?? 0);
     const balance = Number(data.balance ?? data.newBalance ?? data.balanceAfterGame);
     const denomination = Number(data.denomination ?? requested.denomination);
@@ -186,6 +212,12 @@
     };
   }
 
+  // Keep-alive poll — any authorized request resets the backend's 15-minute
+  // inactivity timer (confirmed with the LMS team), so periodically calling
+  // this lets a player who's been idle for a while still have a live
+  // session on their next PayTicket, without them ever needing to notice
+  // or re-authorize. Never touches DEMO balance (that's simulated locally)
+  // or the ticket flow.
   async function getBalance({currency}={}) {
     const cur = String(currency || cfg.currency || 'KGS').toUpperCase();
     if (MOCK) {
@@ -193,8 +225,15 @@
       if (!(cur in mockBalances)) mockBalances[cur]=1000;
       return {balance:mockBalances[cur], currency:cur, currencyDisplay:cfg.currencyDisplay || cur};
     }
-    const sep = cfg.endpoints.balance.includes('?') ? '&' : '?';
-    return normalizeBalance(await apiRequest(cfg.endpoints.balance + sep + 'currency=' + encodeURIComponent(cur), {method:'GET'}), cur);
+    // Same endpoint as PayTicket, differentiated by Method= — not a
+    // separate REST path (see comment on cfg.endpoints in lms-config.js).
+    const qs = new URLSearchParams({Method:'Balance'});
+    const idIG = (runtimeInit && runtimeInit.idIG) ?? params.get('idIG');
+    const idSK = (runtimeInit && runtimeInit.idSK) ?? params.get('idSK');
+    if (idIG != null) qs.set('idIG', String(idIG));
+    if (idSK != null) qs.set('idSK', String(idSK));
+    const sep = cfg.endpoints.newGame.includes('?') ? '&' : '?';
+    return normalizeBalance(await apiRequest(cfg.endpoints.newGame + sep + qs.toString(), {method:'GET'}), cur);
   }
 
   async function createTicket({gameId, denomination, currency, language}) {
@@ -252,7 +291,7 @@
     };
   }
 
-  global.X2LMS = {getGameSettings,getBalance,createTicket,createDemoTicket,emit,getSession:()=>session};
+  global.X2LMS = {getGameSettings,getBalance,createTicket,createDemoTicket,emit,getSession:()=>session,isMock:MOCK};
   setTimeout(()=>emit('X2_GAME_READY',{
     gameId:params.get('gameId') || cfg.gameId || 'CHUKO',
     needsInit:!MOCK && cfg.initMode==='postMessage',

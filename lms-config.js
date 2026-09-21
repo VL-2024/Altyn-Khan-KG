@@ -1,4 +1,5 @@
 /* ALTYN KHAN Modern 3D — runtime / LMS settings. */
+/* © 2026 ISS LLC. Vadim Lunev. All rights reserved. */
 window.X2_GAME_CONFIG = {
   gameId: 'ALTYN_KHAN',
   denomination: 25,
@@ -47,15 +48,36 @@ window.X2_GAME_CONFIG = {
 
   apiBase: '',
   endpoints: {
-    balance: '/api/lms/player/balance',
+    // Single Method=-based endpoint — same URL serves PayTicket (Method=
+    // PayTicket) and the balance keep-alive (Method=Balance), matching the
+    // real backend contract confirmed for the sibling X2 LOTO games
+    // (Mahjong Luck / Upay / ЧҮКӨ-ОРДО). The placeholder REST-style
+    // `/api/lms/player/balance` path this used to point to was never real
+    // — Method=Balance rides this same endpoint instead.
     newGame: '/api/lms/game/new'
   },
 
   initMode: 'postMessage',
-  sessionMode: 'postMessage',
+  // Team decision (2026-09, Telegram): auth rides the browser session
+  // (cookie), not a bearer token — same call across the whole X2 LOTO
+  // lineup (Mahjong Luck / Upay / ЧҮКӨ-ОРДО already switched; this brings
+  // Алтын Хан in line). This ONLY works if the game is served from the
+  // same domain as the LMS site itself (Vladislav Laptev's condition) — a
+  // cross-domain iframe won't get the cookie sent at all (SameSite,
+  // Safari ITP). Whoever deploys this to x2.kg must host it under that
+  // same domain, not a separate CDN/Pages domain.
+  sessionMode: 'cookie',
   sessionQueryParam: 'session',
   sessionHeader: 'X-Session-ID',
   parentOrigin: '*',
   allowedParentOrigins: ['*'],
-  requestTimeoutMs: 10000
+  requestTimeoutMs: 10000,
+
+  // Keep-alive: any authorized request resets the LMS backend's 15-minute
+  // inactivity timeout (confirmed with the LMS team), so the game polls
+  // Method=Balance on this interval — comfortably under 15 min — so a
+  // player who's idle for a while doesn't hit an expired session on their
+  // next PayTicket. See X2LMS.getBalance() / startBalancePolling() in
+  // src/game.js.
+  balancePollIntervalMs: 5 * 60 * 1000
 };

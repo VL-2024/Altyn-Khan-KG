@@ -151,12 +151,14 @@ window.X2_GAME_CONFIG = {
 
   apiBase: '',
   endpoints: {
-    newGame: 'https://<LMS-HOST>/api/Lotto.Users.cls',
-    balance: '/api/lms/player/balance' // normal REAL flow его не использует
+    // Единственный endpoint — Method=PayTicket и Method=Balance (см. §8
+    // "Вариант C") идут на один и тот же URL, различаясь query-параметром
+    // Method=.
+    newGame: 'https://<LMS-HOST>/api/Lotto.Users.cls'
   },
 
   initMode: 'postMessage',
-  sessionMode: 'postMessage',
+  sessionMode: 'cookie',
   sessionHeader: 'X-Session-ID',
 
   parentOrigin: 'https://x2.kg',
@@ -238,7 +240,7 @@ ZH
 
 Адаптер поддерживает три схемы.
 
-## Вариант A — `postMessage` (рекомендуемый текущей архитектурой)
+## Вариант A — `postMessage` (устаревший — см. Вариант C ниже)
 
 ```js
 sessionMode: 'postMessage'
@@ -275,7 +277,7 @@ https://games.x2.kg/chuko/?session=...
 
 Для production этот вариант использовать только если это принято политикой безопасности: session попадает в URL, логи и историю.
 
-## Вариант C — cookie
+## Вариант C — cookie (рекомендуемый — решение команды, 2026-09)
 
 ```js
 sessionMode: 'cookie'
@@ -287,7 +289,11 @@ sessionMode: 'cookie'
 credentials: 'include'
 ```
 
-Для cross-site cookie должны быть корректно настроены `SameSite=None; Secure`.
+**Условие:** игра должна быть развёрнута на том же домене, что и сам
+сайт LMS — иначе браузер (Safari ITP, SameSite) не пришлёт cookie в
+кросс-доменном iframe, и все запросы будут молча уходить
+неавторизованными. Для cross-site cookie дополнительно должны быть
+корректно настроены `SameSite=None; Secure`.
 
 ---
 
@@ -316,11 +322,15 @@ https://<LMS-HOST>/api/Lotto.Users.cls?Method=PayTicket&gameId=<GAME_ID>&amount=
 ```json
 {
   "ticketId": "123456789",
-  "scenario": 3,
+  "scenario": [3, 0],
   "win": 50,
   "balance": 1275
 }
 ```
+
+`scenario` реально приходит массивом `[id, unused]`, не голым числом —
+используется только первый элемент. Adapter на всякий случай всё ещё
+принимает и голое число тоже, для обратной совместимости.
 
 Минимально обязательны:
 

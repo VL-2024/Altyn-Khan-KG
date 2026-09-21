@@ -1,3 +1,4 @@
+// © 2026 ISS LLC. Vadim Lunev. All rights reserved.
 (() => {
   'use strict';
 
@@ -3317,9 +3318,44 @@
     gameState.phase = 'idle';
     applyTranslations();
     await refreshBalance();
+    startBalancePolling();
     resetRound();
     renderState();
     showStatus('');
+  }
+
+  // Keep-alive: periodically re-touches the LMS session so a player idle
+  // for a while doesn't hit an expired session on their next PayTicket —
+  // see LMS.getBalance() in lms-adapter.js for why this works. No-op in
+  // mock mode (no real backend session to keep alive). Only refreshes
+  // gameState.realBalance — DEMO balance is always simulated locally.
+  function startBalancePolling() {
+    if (LMS.isMock) return;
+    const interval = Number(LMS_CFG.balancePollIntervalMs) || 5 * 60 * 1000;
+
+    const poll = async () => {
+      // Skip mid-round — never race a PayTicket/throw flow with this.
+      if (document.visibilityState !== 'visible') return;
+      if (!['idle', 'settled'].includes(gameState.phase)) return;
+      try {
+        const result = await LMS.getBalance({currency: gameState.currency});
+        gameState.realBalance = result.balance;
+        if (gameState.mode === 'real') {
+          gameState.balance = gameState.realBalance;
+          if (ui.balance) ui.balance.textContent = `${formatMoney(gameState.balance)} ${gameState.currencyDisplay || gameState.currency}`;
+        }
+      } catch (err) {
+        // Silent — this is a background touch, not a user action. A truly
+        // expired session still surfaces normally through the existing
+        // SESSION_EXPIRED handling the next time the player starts a ticket.
+        console.warn('[ALTYN] balance keep-alive poll failed', err);
+      }
+    };
+
+    setInterval(poll, interval);
+    // A tab backgrounded for a while can have its timers throttled/paused —
+    // catch up immediately on return instead of waiting for the next tick.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); });
   }
 
   function resetRound() {
