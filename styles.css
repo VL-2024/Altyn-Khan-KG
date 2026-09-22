@@ -13,7 +13,17 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   background:linear-gradient(180deg,#0c2c56 0%,#02142f 100%);
   transition:opacity .45s ease
 }
-.preloader-logo{width:min(220px,58vw);height:auto;display:block;border-radius:14px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
+/* The source artwork's own flat background can't exactly match the
+   preloader's gradient at every screen size/position, so the edges are
+   feathered to transparent (mask, not the image itself) rather than
+   relying on a hard-edged color match - this hides any residual seam
+   regardless of how closely the two backgrounds happen to line up. */
+.preloader-logo{
+  width:min(220px,58vw);height:auto;display:block;
+  filter:drop-shadow(0 6px 14px rgba(0,0,0,.45));
+  -webkit-mask-image:radial-gradient(ellipse 72% 72% at 50% 50%,#000 58%,transparent 100%);
+  mask-image:radial-gradient(ellipse 72% 72% at 50% 50%,#000 58%,transparent 100%);
+}
 .preloader-glow{
   position:absolute;top:50%;left:50%;margin:-110px 0 0 -110px;width:220px;height:220px;
   border-radius:50%;pointer-events:none;
