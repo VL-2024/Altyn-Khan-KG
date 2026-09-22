@@ -10,7 +10,10 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 .preloader{
   position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:16px;
-  background:linear-gradient(180deg,#0c2c56 0%,#02142f 100%);
+  /* Flat, not a gradient - matches assets/preloader-logo.webp's own flat
+     background exactly so the mask-feathered edges have nothing to seam
+     against, at any screen size/logo position. */
+  background:#082b5a;
   transition:opacity .45s ease
 }
 /* The source artwork's own flat background can't exactly match the

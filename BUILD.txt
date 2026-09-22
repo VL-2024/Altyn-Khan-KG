@@ -1,16 +1,8 @@
-ORDO / ALTYN KHAN 3D build: 0.5.9
-Preloader logo polish, per user feedback that the artwork's own dark
-background showed as a visible rectangle against the preloader's navy
-gradient:
-- Swapped in the user's recolored artwork (assets/preloader-logo.webp,
-  now 400x231, background repainted closer to the preloader gradient's
-  own navy tone) - added a ?v=0.5.9 cache-bust query string, which the
-  image never had before.
-- Added a radial-gradient CSS mask (.preloader-logo) that feathers the
-  image's edges to transparent instead of relying on an exact background
-  color match, so any residual seam (the artwork's flat background can't
-  match a gradient at every screen position) fades out rather than
-  showing a hard edge. Removed the now-redundant border-radius/rectangle
-  treatment.
-Verified via Playwright screenshot: no visible rectangle boundary, logo/
-mascot stay crisp at the center, edges dissolve into the gradient.
+ORDO / ALTYN KHAN 3D build: 0.5.10
+Preloader background changed from a two-stop gradient (#0c2c56 -> #02142f)
+to a flat #082b5a, per user request - the artwork's own background is
+flat, so a gradient could only ever match it at one screen position. Flat
+means an exact, guaranteed match everywhere, with the mask (v0.5.9) now
+having nothing to seam against.
+Verified via Playwright screenshot: no visible edge/rectangle around the
+logo at all.
