@@ -1,22 +1,7 @@
-ORDO / ALTYN KHAN 3D build: 0.5.7
-Added a full-screen preloader (#preloader in index.html), matching the
-pattern already shipped in Mahjong Luck/Upay/ЧҮКӨ-ОРДО: inline X2 LOTO
-logo + game title + a progress bar driven by real boot() stage boundaries
-in src/game.js (setPreloaderProgress()) - engine/scene init, Havok physics,
-the 3 GLB models (incremented per model as each resolves, not just at the
-end of the parallel load), scene setup, and the LMS handshake - rather
-than a fake animation. Hidden via document.documentElement.classList.add
-('app-ready') only after engine.runRenderLoop() has actually started (so
-the game is never revealed before the first real frame renders), with a
-CSS opacity fade (.app-ready .preloader{opacity:0;pointer-events:none}).
-On any boot() failure, showFatal() now also adds 'app-fallback' (.preloader
-{display:none}) so the existing #fatal error box is shown instead of being
-hidden behind the preloader.
-Verified via Playwright: the preloader is visible (display:flex, opacity:1)
-while boot() is still in flight, the title/progress bar/stage label render
-correctly, and app-ready correctly fades it out (opacity 0, pointer-events
-none) only after the render loop starts. Full boot() could not be run
-end-to-end in this sandbox (Babylon/Havok CDN blocked here), so the
-individual progress-bar stage transitions during a real physics/GLB load
-are untested live - verified instead by manually driving the same DOM/CSS
-state the real boot() drives.
+ORDO / ALTYN KHAN 3D build: 0.5.8
+Swapped the preloader's placeholder inline "X2 LOTO" text-SVG logo for the
+user-supplied branded artwork (assets/preloader-logo.webp - mascot + X2
+LOTO wordmark), sized responsively (min(220px,58vw)) with a rounded corner
+so its own dark background blends into the preloader's navy gradient.
+No other preloader behavior changed (v0.5.7's stage-driven progress bar,
+app-ready/app-fallback classes, etc. are untouched).

@@ -13,7 +13,7 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   background:linear-gradient(180deg,#0c2c56 0%,#02142f 100%);
   transition:opacity .45s ease
 }
-.preloader-logo{width:120px;height:auto;display:block;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
+.preloader-logo{width:min(220px,58vw);height:auto;display:block;border-radius:14px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
 .preloader-glow{
   position:absolute;top:50%;left:50%;margin:-110px 0 0 -110px;width:220px;height:220px;
   border-radius:50%;pointer-events:none;
