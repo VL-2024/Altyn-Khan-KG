@@ -1,9 +1,22 @@
-ORDO / ALTYN KHAN 3D build: 0.5.6
-Baked the user's live-tuned values (from "Копия" JSON on the tuning panel,
-tested on a real host where the Babylon CDN is reachable) into
-TUNE_DEFAULTS in src/game.js, replacing the placeholder v0.5.4 defaults.
-Every one of the 43 tuning keys now ships as the tuned look out of the box
-for a fresh player (no localStorage) - carpet/pile/camera/model placement
-plus the 2D UI overlay (logo/title/wallet position+scale, hint/score/
-bottom/action font+plate scale). No code changes beyond the default
-values themselves; the tuning panel and its slider ranges are unchanged.
+ORDO / ALTYN KHAN 3D build: 0.5.7
+Added a full-screen preloader (#preloader in index.html), matching the
+pattern already shipped in Mahjong Luck/Upay/ЧҮКӨ-ОРДО: inline X2 LOTO
+logo + game title + a progress bar driven by real boot() stage boundaries
+in src/game.js (setPreloaderProgress()) - engine/scene init, Havok physics,
+the 3 GLB models (incremented per model as each resolves, not just at the
+end of the parallel load), scene setup, and the LMS handshake - rather
+than a fake animation. Hidden via document.documentElement.classList.add
+('app-ready') only after engine.runRenderLoop() has actually started (so
+the game is never revealed before the first real frame renders), with a
+CSS opacity fade (.app-ready .preloader{opacity:0;pointer-events:none}).
+On any boot() failure, showFatal() now also adds 'app-fallback' (.preloader
+{display:none}) so the existing #fatal error box is shown instead of being
+hidden behind the preloader.
+Verified via Playwright: the preloader is visible (display:flex, opacity:1)
+while boot() is still in flight, the title/progress bar/stage label render
+correctly, and app-ready correctly fades it out (opacity 0, pointer-events
+none) only after the render loop starts. Full boot() could not be run
+end-to-end in this sandbox (Babylon/Havok CDN blocked here), so the
+individual progress-bar stage transitions during a real physics/GLB load
+are untested live - verified instead by manually driving the same DOM/CSS
+state the real boot() drives.

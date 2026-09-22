@@ -28,6 +28,8 @@
     tuneCopyBtn: document.getElementById('tuneCopyBtn'),
     tuneOutput: document.getElementById('tuneOutput'),
     fieldPhoto: document.querySelector('.field-photo'),
+    preloaderBar: document.getElementById('preloaderBar'),
+    preloaderStage: document.getElementById('preloaderStage'),
 
     balance: document.getElementById('balance-value'),
     deposit: document.getElementById('deposit-btn'),
@@ -416,10 +418,15 @@
   async function loadGlbModels() {
     if (!BABYLON.SceneLoader) throw new Error('Babylon GLTF loader не загрузился');
     if (ui.badge) ui.badge.textContent = 'HAVOK · GLB…';
+    let glbLoaded = 0;
+    const bumpGlbProgress = () => {
+      glbLoaded++;
+      setPreloaderProgress(35 + Math.round((glbLoaded / 3) * 50), `Модели (${glbLoaded}/3)…`);
+    };
     const [chuko, khan, sakaModel] = await Promise.all([
-      loadGlbTemplate('chuko', C.glb.chukoFile),
-      loadGlbTemplate('khan', C.glb.khanFile),
-      loadGlbTemplate('saka', C.glb.sakaFile)
+      loadGlbTemplate('chuko', C.glb.chukoFile).then(r => { bumpGlbProgress(); return r; }),
+      loadGlbTemplate('khan', C.glb.khanFile).then(r => { bumpGlbProgress(); return r; }),
+      loadGlbTemplate('saka', C.glb.sakaFile).then(r => { bumpGlbProgress(); return r; })
     ]);
     modelBank.chuko = chuko;
     modelBank.khan = khan;
@@ -796,8 +803,19 @@
 
   applyDomTuning();
 
+  // Full-screen splash shown until boot() finishes - same pattern as the
+  // sibling X2 LOTO games (see #preloader in index.html): a progress bar
+  // driven by real stage boundaries (physics/models/scene/LMS are the only
+  // steps slow enough to matter) rather than a fake animation, hidden via
+  // the 'app-ready' class once everything is actually ready to play.
+  function setPreloaderProgress(pct, stageLabel) {
+    if (ui.preloaderBar) ui.preloaderBar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    if (stageLabel && ui.preloaderStage) ui.preloaderStage.textContent = stageLabel;
+  }
+
   function showFatal(error) {
     console.error(error);
+    document.documentElement.classList.add('app-fallback');
     ui.fatal.hidden = false;
     ui.fatalText.textContent = String(error?.message || error || 'Unknown error');
     if (ui.action) ui.action.disabled = true;
@@ -4500,6 +4518,7 @@
   }
 
   async function boot() {
+    setPreloaderProgress(2, 'Инициализация…');
     if (!window.BABYLON) throw new Error('Babylon.js не загрузился. Проверьте доступ к CDN.');
 
     engine = new BABYLON.Engine(ui.canvas, true, {
@@ -4517,16 +4536,22 @@
     scene.skipPointerMovePicking = true;
     scene.performancePriority = BABYLON.ScenePerformancePriority.Intermediate;
 
+    setPreloaderProgress(8, 'Физика…');
     await initPhysics();
+    setPreloaderProgress(30, 'Окружение…');
     createEnvironment();
+    setPreloaderProgress(35, 'Модели (0/3)…');
     await loadGlbModels();
+    setPreloaderProgress(88, 'Настройка сцены…');
     createAimVisuals();
     bindTuner();
     bindGameUi();
     applyCameraTuning();
     applyPilePieceScale();
     resetRound();
+    setPreloaderProgress(94, 'Подключение к LMS…');
     await initializeGameIntegration();
+    setPreloaderProgress(100, 'Готово');
 
     scene.onBeforeRenderObservable.add(() => {
       syncAllGlbVisuals();
@@ -4553,6 +4578,9 @@
       perfTick++;
       if (perfTick % 12 === 0) updatePerf();
     });
+    // First real frame is now rendering - safe to reveal the game and fade
+    // out the preloader (see the .app-ready rule in styles.css).
+    document.documentElement.classList.add('app-ready');
 
     // Our own layout can change size without a plain window "resize" event
     // firing in every browser (in-app browsers in particular - see the
