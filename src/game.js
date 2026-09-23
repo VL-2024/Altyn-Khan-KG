@@ -1918,6 +1918,21 @@
     ui.denomSelect.disabled = !enabled;
   }
 
+  // LMS reported `denom` as temporarily out of stock (PayTicket ticketId
+  // 0 - see normalizeTicket() in lms-adapter.js): drop it from
+  // gameState.denominations/the select for the rest of this page load. Not
+  // restored until the next game initialization (fresh page load / new
+  // X2_LMS_INIT) - there's no signal from LMS for "it's back", so
+  // re-offering it eagerly would risk repeating the same failed purchase.
+  function removeDenomination(denom) {
+    gameState.denominations = (gameState.denominations || []).filter(d => Number(d) !== Number(denom));
+    if (Number(gameState.denomination) === Number(denom)) {
+      const fallback = gameState.denominations[0];
+      if (fallback != null) gameState.denomination = fallback;
+    }
+    renderDenominationButtons();
+  }
+
   function renderModeSwitch() {
     if (!ui.modeSwitch) return;
     ui.modeSwitch.classList.toggle('hidden', !gameState.demoAllowed);
@@ -3177,7 +3192,13 @@
       gameState.ticketReady = false;
       gameState.ticket = null;
       const code = err.code || 'GAME_START_ERROR';
-      showStatus(code === 'INSUFFICIENT_FUNDS' ? 'insufficient' : code === 'SESSION_EXPIRED' ? 'sessionEnded' : 'startError');
+      if (code === 'DENOMINATION_UNAVAILABLE') {
+        const denom = err.denomination ?? gameState.denomination;
+        removeDenomination(denom);
+        showStatus('ticketsUnavailable', {denom, currency: gameState.currencyDisplay});
+      } else {
+        showStatus(code === 'INSUFFICIENT_FUNDS' ? 'insufficient' : code === 'SESSION_EXPIRED' ? 'sessionEnded' : 'startError');
+      }
       if (autoPlay.active) { clearAutoTimers(); finishAutoPlay(); }
       renderState();
       LMS?.emit?.('X2_GAME_ERROR',{stage:'newGame',code,message:err.message||String(err)});

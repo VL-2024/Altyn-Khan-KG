@@ -1,8 +1,22 @@
-ORDO / ALTYN KHAN 3D build: 0.5.10
-Preloader background changed from a two-stop gradient (#0c2c56 -> #02142f)
-to a flat #082b5a, per user request - the artwork's own background is
-flat, so a gradient could only ever match it at one screen position. Flat
-means an exact, guaranteed match everywhere, with the mask (v0.5.9) now
-having nothing to seam against.
-Verified via Playwright screenshot: no visible edge/rectangle around the
-logo at all.
+ORDO / ALTYN KHAN 3D build: 0.5.11
+Auth switched back to bearer token (sessionMode: 'postMessage'), matching
+Mahjong Luck/Upay/ЧҮКӨ-ОРДО - the earlier cookie-mode pass never got
+reversed here. Also fixed a real, sessionMode-independent bug: apiRequest()
+never set the Authorization: Bearer header at all, only the custom
+X-Session-ID one - now sets both.
+
+Added the "denomination temporarily out of stock" handling via
+ticketId: 0 (DENOMINATION_UNAVAILABLE), ported from the same sibling
+games - was missing here entirely. LMS can now signal a sold-out
+denomination via ticketId:0 instead of an HTTP error; the game shows
+"Билеты <N> <currency> временно недоступны" and drops it from the
+selector until the next X2_LMS_INIT.
+
+Verified via a standalone browser-run test that loads only lms-config.js
++ scenario-config.js + lms-adapter.js (no Babylon/Havok, which this
+sandbox can't reach over CDN): mock ticket purchase works, the
+?mockOutOfStock QA hook throws DENOMINATION_UNAVAILABLE with the right
+denomination while other denominations still work, a real (non-mock)
+LMS response with ticketId:0 throws the same error rather than
+BAD_TICKET_RESPONSE, and the Authorization: Bearer header is now
+actually present on outgoing requests.

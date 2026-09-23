@@ -172,6 +172,17 @@ Numeric ID `1..7` сохранены без изменений для обрат
 Портированы фиксы/фичи, уже сделанные в этих играх (та же общая
 X2-интеграция):
 
+> **Обновлено (авторизация): решение снова сменилось на bearer-токен.**
+> Пункт ниже описывает промежуточное состояние (cookie), актуальное на
+> момент этого захода синхронизации — сохранён как история. С тех пор
+> решение развернулось обратно: авторизация снова через bearer-токен,
+> доставляемый LMS через `postMessage` (`sessionMode: 'postMessage'`),
+> как в Mahjong Luck/Upay/ЧҮКӨ-ОРДО. Заодно исправлена реальная ошибка,
+> независимая от `sessionMode`: `apiRequest()` никогда не выставлял
+> заголовок `Authorization: Bearer <token>` — отправлялся только
+> кастомный `X-Session-ID`. Теперь оба. Текущее состояние кода
+> (`lms-config.js` → `sessionMode`) — `'postMessage'`.
+
 - **Авторизация — через cookie (`sessionMode: 'cookie'`), не токен.**
   Решение всей команды (2026-09) — было принято ещё во время работы над
   Mahjong Luck, но в этой игре `lms-config.js` до сих пор был на
@@ -180,6 +191,16 @@ X2-интеграция):
   сестринских — просто конфиг не переключили). **Условие:** домен игры
   должен совпадать с доменом сайта LMS — иначе браузер (Safari ITP,
   SameSite) не пришлёт cookie в кросс-доменном iframe.
+- **Номинал временно закончился — `ticketId: 0`** (портировано позже, из
+  Mahjong Luck/Upay/ЧҮКӨ-ОРДО — было пропущено при этом заходе
+  синхронизации): вместо HTTP-ошибки LMS отвечает как обычно (HTTP 200),
+  но с `ticketId: 0` (число или строка `"0"`) — подробности и пример в
+  `LMS_API.md` §6a. Adapter (`normalizeTicket()` в `lms-adapter.js`
+  бросает `DENOMINATION_UNAVAILABLE`, обрабатывается в
+  `requestNewGame()`/`removeDenomination()` в `src/game.js`) откатывает
+  оптимистичное списание, показывает `showStatus('ticketsUnavailable',
+  {denom, currency})` и убирает номинал из `#denom-select` до следующей
+  инициализации игры. QA-хук: `?mock=true&mode=real&mockOutOfStock=<amount>`.
 - **`scenario` в ответе PayTicket — массив `[id, 0]`**, не голое число.
   `normalizeTicket()` теперь читает первый элемент массива перед
   передачей в `scenarioCfg.get()` — раньше `scenarioCfg.get([3,0])`
@@ -202,8 +223,8 @@ X2-интеграция):
   минут, мог бы упереться в протухшую сессию на следующем `PayTicket`,
   хотя его логин на сайте живёт 30 дней.
   **Открытый вопрос к бэкенду:** нужен ли `idIG` для `Method=Balance`,
-  или (как и `PayTicket`) достаточно cookie-сессии — игра сейчас `idIG`
-  никак не получает. См. `LMS_API.md` §4.
+  или (как и `PayTicket`) достаточно bearer-токена сессии — игра сейчас
+  `idIG` никак не получает. См. `LMS_API.md` §4.
 - **Авторские права** (невидимо игроку) — `<meta name="copyright">` +
   комментарий в `<head>` `index.html`, и по одной строке в начале
   `src/game.js`, `lms-config.js`, `styles.css`.
@@ -289,11 +310,12 @@ CDN (`cdn.jsdelivr.net`, `cdn.babylonjs.com`), которые заблокиро
 - `mock: false`;
 - реальный `gameId` в `lms-config.js`;
 - реальный URL `PayTicket` (`cfg.endpoints.newGame`);
-- **домен деплоя игры должен совпадать с доменом сайта LMS** —
-  `sessionMode: 'cookie'` не пришлёт cookie в кросс-доменном iframe;
+- ~~домен деплоя игры должен совпадать с доменом сайта LMS~~ — было
+  верно под `sessionMode: 'cookie'`; при текущем `sessionMode:
+  'postMessage'` (bearer-токен) это ограничение не действует;
 - ограничить `parentOrigin` / `allowedParentOrigins` конкретными origin
   (сейчас `['*']` — открыто только для теста);
-- проверить CORS / cookies / session header;
+- проверить CORS / `Authorization`/session header;
 - уточнить у бэкенда `idIG`/`idSK` для `Method=Balance` (см.
   «Синхронизация с Mahjong Luck…» выше и `LMS_API.md` §4);
 - решить, оставляем ли DEMO;

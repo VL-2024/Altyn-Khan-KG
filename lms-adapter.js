@@ -141,8 +141,17 @@
       ...(options.body ? {'Content-Type':'application/json'} : {}),
       ...(options.headers || {})
     };
-    if (sessionValue && cfg.sessionHeader) headers[cfg.sessionHeader] = sessionValue;
+    if (sessionValue) {
+      headers.Authorization = 'Bearer ' + sessionValue;
+      if (cfg.sessionHeader) headers[cfg.sessionHeader] = sessionValue;
+    }
     try {
+      // Primary auth is the Authorization: Bearer header set above (team
+      // decision, cfg.sessionMode 'postMessage'/'query'). credentials:'include'
+      // is kept regardless - harmless in token mode, and it's what would carry
+      // auth if sessionMode is ever switched back to 'cookie' (only works then
+      // if the game's own domain matches the LMS site's; otherwise the browser
+      // won't send it either way).
       const response = await fetch((cfg.apiBase || '') + path, {...options, headers, credentials:'include', signal:controller.signal});
       let data={}; try { data=await response.json(); } catch (_) {}
       if (!response.ok) {
@@ -194,6 +203,18 @@
     const denomination = Number(data.denomination ?? requested.denomination);
     const currency = String(data.currency || requested.currency || cfg.currency || 'KGS').toUpperCase();
     if (ticketId == null || ticketId === '') throw makeError('BAD_TICKET_RESPONSE','LMS response has no ticketId');
+    // Team decision (matches Mahjong Luck/Upay/ЧҮКӨ-ОРДО): instead of an
+    // HTTP error when a denomination's tickets have run out, LMS sends
+    // ticketId 0 (not null/empty, which stays a genuine BAD_TICKET_RESPONSE
+    // above) with the rest of the response left unvalidated below — see the
+    // game's ticket-purchase catch block, which shows the player a message
+    // and drops this denomination from the selector instead of treating it
+    // as a technical failure.
+    if (Number(ticketId) === 0) {
+      const err = makeError('DENOMINATION_UNAVAILABLE', `Tickets for denomination ${requested.denomination} are temporarily unavailable`);
+      err.denomination = Number(requested.denomination);
+      throw err;
+    }
     if (!scenarioItem) throw makeError('BAD_SCENARIO_RESPONSE','Unknown scenario returned by LMS');
     if (!Number.isFinite(win) || win < 0) throw makeError('BAD_WIN_RESPONSE','LMS response has invalid win');
     if (!Number.isFinite(balance)) throw makeError('BAD_BALANCE_RESPONSE','LMS ticket response has no numeric balance');
@@ -241,6 +262,16 @@
     const lang = String(language || cfg.language || 'RU').toUpperCase();
     if (MOCK) {
       await new Promise(r=>setTimeout(r,180));
+
+      // QA hook: simulate LMS's "denomination temporarily out of stock"
+      // signal (ticketId 0 - see normalizeTicket() above) without needing a
+      // real backend, e.g. ?mock=true&mode=real&mockOutOfStock=50
+      if (Number(params.get('mockOutOfStock')) === Number(denomination)) {
+        const err = makeError('DENOMINATION_UNAVAILABLE', `Tickets for denomination ${denomination} are temporarily unavailable`);
+        err.denomination = Number(denomination);
+        throw err;
+      }
+
       const forced = params.get('scenario');
       const forcedItem = forced != null ? scenarioCfg.get(forced) : null;
       const demoItem = forcedItem || scenarioCfg.demoAt(mockCounter++);

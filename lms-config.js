@@ -58,15 +58,20 @@ window.X2_GAME_CONFIG = {
   },
 
   initMode: 'postMessage',
-  // Team decision (2026-09, Telegram): auth rides the browser session
-  // (cookie), not a bearer token — same call across the whole X2 LOTO
-  // lineup (Mahjong Luck / Upay / ЧҮКӨ-ОРДО already switched; this brings
-  // Алтын Хан in line). This ONLY works if the game is served from the
-  // same domain as the LMS site itself (Vladislav Laptev's condition) — a
-  // cross-domain iframe won't get the cookie sent at all (SameSite,
-  // Safari ITP). Whoever deploys this to x2.kg must host it under that
-  // same domain, not a separate CDN/Pages domain.
-  sessionMode: 'cookie',
+  // Team decision (2026-09, updated): auth rides a bearer token, not the
+  // browser session cookie — same call across the whole X2 LOTO lineup
+  // (Mahjong Luck / Upay / ЧҮКӨ-ОРДО already switched back; this brings
+  // Алтын Хан in line again — an earlier pass had briefly moved everything
+  // to cookie mode, since reversed). LMS delivers the token via
+  // postMessage (in X2_LMS_INIT's `session` field, or a later
+  // X2_LMS_SESSION message if it rotates) - see waitForSession()/
+  // apiRequest() in lms-adapter.js, which now set Authorization: Bearer
+  // <token> whenever sessionMode isn't 'cookie' (that header was actually
+  // missing entirely before this pass - only the custom sessionHeader was
+  // being sent, fixed alongside this config flip). Unlike the cookie
+  // approach, this doesn't require the game to be served from the LMS
+  // site's own domain (no SameSite/ITP constraint).
+  sessionMode: 'postMessage',
   sessionQueryParam: 'session',
   sessionHeader: 'X-Session-ID',
   parentOrigin: '*',
@@ -79,5 +84,11 @@ window.X2_GAME_CONFIG = {
   // player who's idle for a while doesn't hit an expired session on their
   // next PayTicket. See X2LMS.getBalance() / startBalancePolling() in
   // src/game.js.
+  // Still kept as-is after the cookie->bearer-token switch above - the
+  // 15-minute timeout is the backend's property (tied to the credential
+  // going unused, not to how it's carried), so switching transport doesn't
+  // by itself remove the need for this. NOT separately confirmed with the
+  // LMS team for the token flow specifically though (same open question
+  // already raised for Mahjong Luck/Upay/ЧҮКӨ-ОРДО).
   balancePollIntervalMs: 5 * 60 * 1000
 };

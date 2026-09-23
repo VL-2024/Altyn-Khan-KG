@@ -12,7 +12,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>ОРДО — АЛТЫН ХАН 3D · v0.5.10</title>
+<title>ОРДО — АЛТЫН ХАН 3D · v0.5.11</title>
 <!-- Critical, inlined so it applies before the render-blocking request for
      styles.css below finishes loading - prevents any flash of unstyled/
      black content on a cold load. Fully superseded by the fuller
@@ -22,7 +22,7 @@
   .preloader{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#082b5a}
   .preloader-logo{width:min(220px,58vw);height:auto;display:block}
 </style>
-<link rel="stylesheet" href="styles.css?v=0.5.10">
+<link rel="stylesheet" href="styles.css?v=0.5.11">
 <style id="shell-size-style"></style>
 <script>
 (function () {
@@ -48,12 +48,12 @@
 })();
 </script>
 <script>
-  window.X2_ALTYN_BUILD = '0.5.10';
+  window.X2_ALTYN_BUILD = '0.5.11';
   (function() {
     try {
       const u = new URL(location.href);
-      if (u.searchParams.get('build') !== '0.5.10') {
-        u.searchParams.set('build','0.5.10');
+      if (u.searchParams.get('build') !== '0.5.11') {
+        u.searchParams.set('build','0.5.11');
         location.replace(u.toString());
       }
     } catch (_) {}
@@ -62,7 +62,7 @@
 </head>
 <body>
 <div id="preloader" class="preloader" aria-live="polite">
-  <img class="preloader-logo" src="assets/preloader-logo.webp?v=0.5.10" alt="X2 LOTO" width="400" height="231">
+  <img class="preloader-logo" src="assets/preloader-logo.webp?v=0.5.11" alt="X2 LOTO" width="400" height="231">
   <div class="preloader-glow" aria-hidden="true"></div>
   <div class="preloader-title">ОРДО<br>АЛТЫН ХАН 3D</div>
   <div class="preloader-track"><div class="preloader-bar" id="preloaderBar"></div></div>
@@ -104,7 +104,7 @@
     <div class="hint-bar" id="hint-bar"><span class="hint-text" id="hint-text">Потяните САКА назад и отпустите</span><button class="hint-toggle" id="hint-toggle" type="button" aria-label="Скрыть подсказку">×</button></div>
     <section class="perf" id="perfPanel" aria-live="polite"><div><span>FPS</span><strong id="fps">—</strong></div><div><span>frame</span><strong id="frameMs">— ms</strong></div><div><span>bodies</span><strong id="bodyCount">—</strong></div><div><span>scale</span><strong id="renderScale">—</strong></div></section>
     <div class="fatal" id="fatal" hidden><strong>Не удалось запустить игру</strong><span id="fatalText"></span></div>
-    <div class="debug">ORDO v0.5.10 · KHAN visual polish · Babylon.js 9.25 + Havok</div>
+    <div class="debug">ORDO v0.5.11 · KHAN visual polish · Babylon.js 9.25 + Havok</div>
 
     <!-- Dev-only tuning panel: never shown to players by default (closed on
          load, toggled only via #tuneBtn). Sliders write into localStorage
@@ -200,15 +200,15 @@
 <script src="https://cdn.jsdelivr.net/npm/babylonjs@9.25.0/babylon.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@9.25.0/babylonjs.loaders.min.js"></script>
 <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
-<script src="src/config.js?v=0.5.10"></script>
-<script src="lms-config.js?v=0.5.10"></script>
-<script src="src/scenario-config.js?v=0.5.10"></script>
-<script src="src/altyn-scenario-controller.js?v=0.5.10"></script>
-<script src="lms-adapter.js?v=0.5.10"></script>
-<script src="src/i18n.js?v=0.5.10"></script>
-<script src="src/game.js?v=0.5.10"></script>
-<script src="src/khan-effects.js?v=0.5.10"></script>
-<script src="src/win-effects.js?v=0.5.10"></script>
-<script src="src/counter-sync.js?v=0.5.10"></script>
+<script src="src/config.js?v=0.5.11"></script>
+<script src="lms-config.js?v=0.5.11"></script>
+<script src="src/scenario-config.js?v=0.5.11"></script>
+<script src="src/altyn-scenario-controller.js?v=0.5.11"></script>
+<script src="lms-adapter.js?v=0.5.11"></script>
+<script src="src/i18n.js?v=0.5.11"></script>
+<script src="src/game.js?v=0.5.11"></script>
+<script src="src/khan-effects.js?v=0.5.11"></script>
+<script src="src/win-effects.js?v=0.5.11"></script>
+<script src="src/counter-sync.js?v=0.5.11"></script>
 </body>
 </html>
