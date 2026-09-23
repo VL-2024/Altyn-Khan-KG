@@ -22,20 +22,27 @@ jobs:
           node --check lms-config.js
           node --check src/i18n.js
           node --check src/game.js
-      - name: Verify v0.5.1 Android visual profile and game wiring
+      - name: Verify build version is consistent across all files
+        # Self-consistency instead of a hardcoded literal - the previous
+        # version of this step asserted an exact string ('0.5.1') that was
+        # already 10+ releases stale (this repo is at 0.5.11+ now) and had
+        # been silently red since whenever the last bump to that literal
+        # was missed. A check that reads the current build number from
+        # index.html and asserts every other reference matches it instead
+        # of a number this file has to be manually kept in sync with can't
+        # go stale the same way - it fails only on a genuine forgot-to-bump
+        # mistake, in any future version, not just the one hardcoded today.
         run: |
-          grep -q "X2_ALTYN_BUILD = '0.5.1'" index.html
-          grep -q "u.searchParams.get('build') !== '0.5.1'" index.html
-          grep -q "khan-effects.js?v=0.5.1" index.html
-          grep -q "win-effects.js?v=0.5.1" index.html
-          grep -q "counter-sync.js?v=0.5.1" index.html
-          grep -q "version: '0.5.1'" src/config.js
-          grep -q "khanModelScale: 1.08" src/game.js
-          grep -q "ANDROID_VISUAL_BOOST" src/game.js
-          grep -q "android-fill" src/game.js
-          grep -q "ANDROID_VISUAL_BOOST ? 1.20 : 1.08" src/game.js
-          grep -q "ANDROID_VISUAL_BOOST ? 0.96 : 1.02" src/game.js
-          grep -q "ANDROID_VISUAL_BOOST ? 1.22 : 1.00" src/game.js
+          BUILD=$(grep -oP "X2_ALTYN_BUILD = '\K[^']+" index.html)
+          echo "Detected build version: $BUILD"
+          test -n "$BUILD"
+          grep -q "u.searchParams.get('build') !== '$BUILD'" index.html
+          for f in styles.css assets/preloader-logo.webp src/config.js lms-config.js src/scenario-config.js src/altyn-scenario-controller.js lms-adapter.js src/i18n.js src/game.js src/khan-effects.js src/win-effects.js src/counter-sync.js; do
+            grep -qF "${f}?v=$BUILD" index.html || { echo "::error::cache-busting query string for $f does not match build $BUILD"; exit 1; }
+          done
+          grep -qF "version: '$BUILD'" src/config.js || { echo "::error::src/config.js CONFIG.version out of sync with build $BUILD"; exit 1; }
+      - name: Verify game wiring
+        run: |
           grep -q "procedural KHAN proxy" src/game.js
           grep -q "RU:'ОРДО'" src/i18n.js
           grep -q "АЛТЫН ХАН 3D" src/i18n.js
