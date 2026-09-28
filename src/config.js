@@ -1,4 +1,4 @@
-window.CHUKO3D_CONFIG = Object.freeze({
+export const CHUKO3D_CONFIG = Object.freeze({
   version: '0.5.11',
   sourceMechanic: 'CHUKO Modern 3D v9 / 0.13.21',
 

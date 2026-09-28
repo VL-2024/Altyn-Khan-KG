@@ -4,10 +4,10 @@
  * This module expands ticketId + scenario into a reproducible sequence of
  * visual throws. It never calculates or changes a payout.
  */
-(function (global) {
-  'use strict';
+import { X2AltynScenarioConfig } from './scenario-config.js';
 
-  const ScenarioCfg = global.X2AltynScenarioConfig;
+export const X2AltynScenarioController = (function (ScenarioCfg) {
+  'use strict';
 
   function hash32(text) {
     let h = 2166136261 >>> 0;
@@ -187,11 +187,11 @@
     return true;
   }
 
-  global.X2AltynScenarioController = Object.freeze({
+  return Object.freeze({
     buildPlan,
     selectTargetIds,
     validatePlan,
     makeRng,
     controllerVersion: '0.1.0'
   });
-})(window);
+})(X2AltynScenarioConfig);

@@ -1,6 +1,6 @@
 # ЧҮКӨ Modern 3D — LMS API / integration contract
 
-Этот файл описывает фактический контракт текущего `lms-adapter.js`.
+Этот файл описывает фактический контракт текущего `src/lms-adapter.js`.
 
 > **Обновлено по образцу Mahjong Luck / Upay / ЧҮКӨ-ОРДО (та же общая
 > X2-интеграция, синхронизировано по их итогам):** `scenario` в ответе
@@ -84,7 +84,7 @@ mock: false
 
 ### Важное замечание о `gameId`
 
-Текущий `game.js` при покупке билета использует `X2_GAME_CONFIG.gameId`. Поэтому production ID игры необходимо установить в `lms-config.js`.
+Текущий `game.js` при покупке билета использует `X2_GAME_CONFIG.gameId`. Поэтому production ID игры необходимо установить в `src/lms-config.js`.
 
 ---
 
@@ -98,7 +98,7 @@ mock: false
 { type:'X2_LMS_SESSION', session:'...' }
 ```
 
-Adapter (`apiRequest()` в `lms-adapter.js`) отправляет его на каждый
+Adapter (`apiRequest()` в `src/lms-adapter.js`) отправляет его на каждый
 запрос как:
 
 ```http
@@ -157,7 +157,7 @@ GET <endpoints.newGame>?Method=Balance&idIG=<idIG>&idSK=<idSK>
 (не статус-код, как у PayTicket из §5) — уточните, если это не так.
 
 Игра дёргает `Method=Balance` раз в ~5 минут (`X2LMS.getBalance()` +
-`startBalancePolling()` в `src/game.js`) — пока вкладка открыта и видна,
+`startBalancePolling()` в `src/main.js`) — пока вкладка открыта и видна,
 без активного розыгрыша — не для отображения баланса как такового, а
 чтобы держать LMS-сессию живой: любой авторизованный запрос сбрасывает
 15-минутный таймер неактивности сессии (подтверждено бэкендом), а без
@@ -217,7 +217,7 @@ GET /api/Lotto.Users.cls?Method=PayTicket&gameId=137&amount=25
 бэкендом для той же линейки X2 LOTO), не голым числом, как показано в
 исходном контракте. Используется только первый элемент; второй эта
 игра не задействует и игнорирует. Adapter (`normalizeTicket()` в
-`lms-adapter.js`) на всякий случай всё ещё принимает и голое число
+`src/lms-adapter.js`) на всякий случай всё ещё принимает и голое число
 тоже, для обратной совместимости.
 
 Допускаемые aliases adapter:
@@ -246,9 +246,9 @@ Luck/Upay/ЧҮКӨ-ОРДО): LMS отвечает как обычно, HTTP 200
 
 Остальные поля (`scenario`/`win`/`balance`) в этом случае игрой не
 проверяются и не нужны — можно не заполнять. Adapter
-(`normalizeTicket()` в `lms-adapter.js` бросает
+(`normalizeTicket()` в `src/lms-adapter.js` бросает
 `DENOMINATION_UNAVAILABLE`, обрабатывается в `requestNewGame()`/
-`removeDenomination()` в `src/game.js`):
+`removeDenomination()` в `src/main.js`):
 - откатывает уже оптимистично списанную ставку (баланс не трогается);
 - показывает игроку «Билеты `<amount>` `<валюта>` временно недоступны»;
 - убирает этот номинал из выпадающего списка **до следующей

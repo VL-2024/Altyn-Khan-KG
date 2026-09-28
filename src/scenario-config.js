@@ -7,7 +7,7 @@
  * the inherited Chuko v9 engine is being refactored. New code must use
  * X2AltynScenarioConfig.
  */
-(function (global) {
+const { scenarios, api } = (function () {
   'use strict';
 
   const scenarios = Object.freeze({
@@ -158,8 +158,13 @@
     scenarioSetVersion: 'altyn-khan-modern-3d-2026-09-12-v1'
   });
 
-  global.X2_ALTYN_SCENARIOS = scenarios;
-  global.X2AltynScenarioConfig = api;
-  global.X2_CHUKO_SCENARIOS = scenarios;
-  global.X2ChukoScenarioConfig = api;
-})(window);
+  return { scenarios, api };
+})();
+
+export const X2_ALTYN_SCENARIOS = scenarios;
+export const X2AltynScenarioConfig = api;
+// Compatibility note: X2ChukoScenarioConfig/X2_CHUKO_SCENARIOS are kept as
+// temporary aliases while the inherited Chuko v9 engine is being refactored.
+// New code must use X2AltynScenarioConfig/X2_ALTYN_SCENARIOS.
+export const X2_CHUKO_SCENARIOS = scenarios;
+export const X2ChukoScenarioConfig = api;

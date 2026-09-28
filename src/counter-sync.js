@@ -1,8 +1,12 @@
 /* ALTYN KHAN Modern 3D v0.4.3 — synchronize score counters with win effects. */
+import { CHUKO3D_CONFIG } from './config.js';
+import { X2LMS } from './lms-adapter.js';
+import { CHUKO_I18N } from './i18n.js';
+
 (() => {
   'use strict';
 
-  const C = window.CHUKO3D_CONFIG || {};
+  const C = CHUKO3D_CONFIG || {};
   let activeTicket = null;
   let khanSyncUntil = 0;
   let khanSyncRaf = 0;
@@ -24,7 +28,7 @@
   }
 
   function hookTicketCreation() {
-    const lms = window.X2LMS;
+    const lms = X2LMS;
     if (!lms || lms.__altynCounterSyncHooked) return;
     ['createTicket', 'createDemoTicket'].forEach(name => {
       const original = lms[name];
@@ -79,7 +83,7 @@
   function localizedStood() {
     const htmlLang = String(document.documentElement.lang || 'ru').toLowerCase();
     const lang = htmlLang.startsWith('ky') ? 'KG' : htmlLang.startsWith('en') ? 'EN' : htmlLang.startsWith('zh') ? 'ZH' : 'RU';
-    return window.CHUKO_I18N?.[lang]?.stood || (lang === 'EN' ? 'Stands' : lang === 'KG' ? 'Турат' : lang === 'ZH' ? '未出界' : 'Стоит');
+    return CHUKO_I18N?.[lang]?.stood || (lang === 'EN' ? 'Stands' : lang === 'KG' ? 'Турат' : lang === 'ZH' ? '未出界' : 'Стоит');
   }
 
   function pulseCounter(el) {

@@ -22,7 +22,7 @@
   .preloader{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#082b5a}
   .preloader-logo{width:min(220px,58vw);height:auto;display:block}
 </style>
-<link rel="stylesheet" href="styles.css?v=0.5.11">
+<link rel="stylesheet" href="src/styles.css?v=0.5.11">
 <style id="shell-size-style"></style>
 <script>
 (function () {
@@ -108,7 +108,7 @@
 
     <!-- Dev-only tuning panel: never shown to players by default (closed on
          load, toggled only via #tuneBtn). Sliders write into localStorage
-         via src/game.js (bindTuner()) - see TUNE_DEFAULTS there for the
+         via src/main.js (bindTuner()) - see TUNE_DEFAULTS there for the
          full key list and applyDomTuning()/applyCameraTuning() for how
          each key is applied. -->
     <button class="clickable" id="tuneBtn" type="button" aria-expanded="false">⚙ НАСТРОЙКА</button>
@@ -200,15 +200,17 @@
 <script src="https://cdn.jsdelivr.net/npm/babylonjs@9.25.0/babylon.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@9.25.0/babylonjs.loaders.min.js"></script>
 <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
-<script src="src/config.js?v=0.5.11"></script>
-<script src="lms-config.js?v=0.5.11"></script>
-<script src="src/scenario-config.js?v=0.5.11"></script>
-<script src="src/altyn-scenario-controller.js?v=0.5.11"></script>
-<script src="lms-adapter.js?v=0.5.11"></script>
-<script src="src/i18n.js?v=0.5.11"></script>
-<script src="src/game.js?v=0.5.11"></script>
-<script src="src/khan-effects.js?v=0.5.11"></script>
-<script src="src/win-effects.js?v=0.5.11"></script>
-<script src="src/counter-sync.js?v=0.5.11"></script>
+<!-- ES modules, same pattern as Mahjong Luck/Upay/Golden Dragon: one entry
+     point per independently-executing file, config/lms-adapter/scenario/
+     i18n modules are pulled in transitively via import - no separate
+     <script> tag needed for those anymore. Babylon/Havok stay classic
+     <script> (no local ESM vendor build for them, unlike Mahjong's vendored
+     pixi.min.mjs) - safe since classic scripts above always finish before
+     any deferred module script runs, so BABYLON/HK stay valid ambient
+     globals for the modules below. -->
+<script type="module" src="src/main.js?v=0.5.11"></script>
+<script type="module" src="src/khan-effects.js?v=0.5.11"></script>
+<script type="module" src="src/win-effects.js?v=0.5.11"></script>
+<script type="module" src="src/counter-sync.js?v=0.5.11"></script>
 </body>
 </html>

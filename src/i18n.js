@@ -1,7 +1,7 @@
 // Translation table: one row per text key, one column per language.
 // To add a language: add its code to LANGS and a column to every row below.
 // To add a UI string: add one row here, then reference it in index.html via
-// data-i18n="key" or in game.js via tr('key').
+// data-i18n="key" or in main.js via tr('key').
 //
 // Falls back to RU (then to the raw key) if a cell is left blank for a
 // language - so a new language column can be filled in gradually without
@@ -12,7 +12,7 @@
 // columns below keep them as transliterations rather than "translating"
 // them - please have a native speaker / the operator confirm this is the
 // terminology they want before shipping EN/ZH to real players.
-const LANGS = ['RU', 'EN', 'KG', 'ZH'];
+export const LANGS = ['RU', 'EN', 'KG', 'ZH'];
 
 const TABLE = {
   balance:          { RU:'Баланс',                    EN:'Balance',                      KG:'Баланс',                       ZH:'余额' },
@@ -124,7 +124,7 @@ const TABLE = {
                       ZH:'碰撞 · Havok' }
 };
 
-window.CHUKO_I18N = LANGS.reduce((dict, lang) => {
+export const CHUKO_I18N = LANGS.reduce((dict, lang) => {
   dict[lang] = {};
   Object.keys(TABLE).forEach(key => {
     const row = TABLE[key];

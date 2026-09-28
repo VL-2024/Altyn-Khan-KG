@@ -1,13 +1,20 @@
 // © 2026 ISS LLC. Vadim Lunev. All rights reserved.
+import { CHUKO3D_CONFIG } from './config.js';
+import { X2LMS } from './lms-adapter.js';
+import { X2AltynScenarioConfig, X2ChukoScenarioConfig } from './scenario-config.js';
+import { X2AltynScenarioController } from './altyn-scenario-controller.js';
+import { X2_GAME_CONFIG } from './lms-config.js';
+import { CHUKO_I18N } from './i18n.js';
+
 (() => {
   'use strict';
 
-  const C = window.CHUKO3D_CONFIG;
-  const LMS = window.X2LMS;
-  const ScenarioCfg = window.X2AltynScenarioConfig || window.X2ChukoScenarioConfig;
-  const AltynScenarioController = window.X2AltynScenarioController;
-  const LMS_CFG = window.X2_GAME_CONFIG || {};
-  const DICT = window.CHUKO_I18N || { RU: {} };
+  const C = CHUKO3D_CONFIG;
+  const LMS = X2LMS;
+  const ScenarioCfg = X2AltynScenarioConfig || X2ChukoScenarioConfig;
+  const AltynScenarioController = X2AltynScenarioController;
+  const LMS_CFG = X2_GAME_CONFIG || {};
+  const DICT = CHUKO_I18N || { RU: {} };
   const ui = {
     canvas: document.getElementById('renderCanvas'),
     fps: document.getElementById('fps'),

@@ -1,6 +1,6 @@
 /* ALTYN KHAN Modern 3D — runtime / LMS settings. */
 /* © 2026 ISS LLC. Vadim Lunev. All rights reserved. */
-window.X2_GAME_CONFIG = {
+export const X2_GAME_CONFIG = {
   gameId: 'ALTYN_KHAN',
   denomination: 25,
   denominations: [25, 50, 100],
@@ -83,7 +83,7 @@ window.X2_GAME_CONFIG = {
   // Method=Balance on this interval — comfortably under 15 min — so a
   // player who's idle for a while doesn't hit an expired session on their
   // next PayTicket. See X2LMS.getBalance() / startBalancePolling() in
-  // src/game.js.
+  // src/main.js.
   // Still kept as-is after the cookie->bearer-token switch above - the
   // 15-minute timeout is the backend's property (tied to the credential
   // going unused, not to how it's carried), so switching transport doesn't

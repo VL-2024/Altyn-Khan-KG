@@ -272,7 +272,7 @@ Havok используется для контакта, промежуточно
 
 ### Этап 2 — следующий
 
-- заменить inherited one-throw round flow в `src/game.js` на multi-throw state machine;
+- заменить inherited one-throw round flow в `src/main.js` на multi-throw state machine;
 - сохранять физическое состояние оставшихся объектов между бросками;
 - reset только САКА между бросками;
 - блокировать преждевременный выход ХАНА;

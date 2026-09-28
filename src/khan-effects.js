@@ -1,6 +1,8 @@
 /* ALTYN KHAN Modern 3D v0.4.4 — amplified KHAN finale effects.
  * Presentation-only layer. Financial result remains LMS-authoritative.
  */
+import { CHUKO_I18N } from './i18n.js';
+
 (() => {
   'use strict';
 
@@ -113,7 +115,7 @@
   function popupText() {
     const htmlLang=String(document.documentElement.lang||'ru').toLowerCase();
     const code=htmlLang.startsWith('en')?'EN':htmlLang.startsWith('ky')?'KG':htmlLang.startsWith('zh')?'ZH':'RU';
-    return window.CHUKO_I18N?.[code]?.khanPopup||window.CHUKO_I18N?.RU?.khanPopup||'ХАН!';
+    return CHUKO_I18N?.[code]?.khanPopup||CHUKO_I18N?.RU?.khanPopup||'ХАН!';
   }
 
   function ticketKey() {

@@ -11,17 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Syntax check
+        # --input-type=module: every src/*.js file is now an ES module
+        # (import/export), same as Mahjong Luck/Upay/Golden Dragon - see
+        # README "Архитектура" for the conversion this replaced classic
+        # <script> globals with.
         run: |
-          node --check src/config.js
-          node --check src/scenario-config.js
-          node --check src/altyn-scenario-controller.js
-          node --check src/khan-effects.js
-          node --check src/win-effects.js
-          node --check src/counter-sync.js
-          node --check lms-adapter.js
-          node --check lms-config.js
-          node --check src/i18n.js
-          node --check src/game.js
+          for f in src/config.js src/scenario-config.js src/altyn-scenario-controller.js src/khan-effects.js src/win-effects.js src/counter-sync.js src/lms-adapter.js src/lms-config.js src/i18n.js src/main.js; do
+            node --input-type=module --check < "$f" || { echo "::error::syntax error in $f"; exit 1; }
+          done
       - name: Verify build version is consistent across all files
         # Self-consistency instead of a hardcoded literal - the previous
         # version of this step asserted an exact string ('0.5.1') that was
@@ -37,34 +34,42 @@ jobs:
           echo "Detected build version: $BUILD"
           test -n "$BUILD"
           grep -q "u.searchParams.get('build') !== '$BUILD'" index.html
-          for f in styles.css assets/preloader-logo.webp src/config.js lms-config.js src/scenario-config.js src/altyn-scenario-controller.js lms-adapter.js src/i18n.js src/game.js src/khan-effects.js src/win-effects.js src/counter-sync.js; do
+          # Only files with their own <script>/<link> tag carry a ?v= query
+          # now - config.js/lms-config.js/scenario-config.js/altyn-scenario-
+          # controller.js/lms-adapter.js/i18n.js are pulled in transitively
+          # via import and have no cache-busting query string of their own
+          # (same convention as Mahjong Luck's own internal imports).
+          for f in src/styles.css assets/preloader-logo.webp src/main.js src/khan-effects.js src/win-effects.js src/counter-sync.js; do
             grep -qF "${f}?v=$BUILD" index.html || { echo "::error::cache-busting query string for $f does not match build $BUILD"; exit 1; }
           done
           grep -qF "version: '$BUILD'" src/config.js || { echo "::error::src/config.js CONFIG.version out of sync with build $BUILD"; exit 1; }
       - name: Verify game wiring
         run: |
-          grep -q "procedural KHAN proxy" src/game.js
+          grep -q "procedural KHAN proxy" src/main.js
           grep -q "RU:'ОРДО'" src/i18n.js
           grep -q "АЛТЫН ХАН 3D" src/i18n.js
           grep -q "khanPopup" src/i18n.js
-          grep -q "throw: 'assets/sounds/impact-chuko.mp3'" lms-config.js
-          grep -q "impact: 'assets/sounds/throw-whoosh.mp3'" lms-config.js
+          grep -q "throw: 'assets/sounds/impact-chuko.mp3'" src/lms-config.js
+          grep -q "impact: 'assets/sounds/throw-whoosh.mp3'" src/lms-config.js
           grep -q "chukoCount: 11" src/config.js
-          grep -q "resolveCurrentAltynThrow" src/game.js
-          grep -q "resetSakaForNextAltynThrow" src/game.js
-          grep -q "X2_GAME_THROW_COMPLETE" src/game.js
+          grep -q "resolveCurrentAltynThrow" src/main.js
+          grep -q "resetSakaForNextAltynThrow" src/main.js
+          grep -q "X2_GAME_THROW_COMPLETE" src/main.js
           grep -q "X2_GAME_ROUND_COMPLETE" src/win-effects.js
           grep -q "X2_ALTYN_NORMAL_WIN_OUT" src/win-effects.js
           grep -q "X2_ALTYN_KHAN_OUT" src/khan-effects.js
           grep -q "X2_ALTYN_KHAN_OUT" src/counter-sync.js
       - name: Scenario planner tests
+        # Rewritten for ES modules: scenario-config.js/altyn-scenario-
+        # controller.js now `export` instead of setting window globals, so
+        # this can no longer plain `require()` them (CommonJS can't parse
+        # `export`). A small throwaway .mjs alongside src/ (same directory,
+        # so its relative imports resolve exactly like the browser's)
+        # replaces the old global.window=global + require() shim.
         run: |
-          node <<'NODE'
-          global.window = global;
-          require('./src/scenario-config.js');
-          require('./src/altyn-scenario-controller.js');
-          const C = global.X2AltynScenarioController;
-          const S = global.X2AltynScenarioConfig;
+          cat > ci-scenario-qa.mjs <<'NODE'
+          import { X2AltynScenarioConfig as S } from './src/scenario-config.js';
+          import { X2AltynScenarioController as C } from './src/altyn-scenario-controller.js';
           for (let id = 1; id <= 9; id++) {
             for (let n = 0; n < 100; n++) {
               const ticket = `QA-${id}-${n}`;
@@ -80,3 +85,5 @@ jobs:
           }
           console.log('Scenario planner QA passed');
           NODE
+          node ci-scenario-qa.mjs
+          rm -f ci-scenario-qa.mjs

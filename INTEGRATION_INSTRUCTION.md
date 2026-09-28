@@ -29,7 +29,7 @@
 │   ┌─────────────────────────────────────────────────┐   │
 │   │ iframe: ЧҮКӨ Modern 3D                           │   │
 │   │                                                  │   │
-│   │ game.js → lms-adapter.js                         │   │
+│   │ src/main.js → src/lms-adapter.js                 │   │
 │   └──────────────────────┬───────────────────────────┘   │
 └──────────────────────────┼───────────────────────────────┘
                            │ HTTPS GET PayTicket
@@ -42,6 +42,25 @@
 ```
 
 Игра является клиентом LMS только для создания билета. Родительская страница отвечает за окружающий пользовательский контекст сайта: вход, пополнение, переходы и т.д.
+
+### ES-модули (ветка `claude/es-modules-conversion`)
+
+Начиная с этой ветки `index.html` грузит `src/main.js` одним
+`<script type="module">` вместо 10 последовательных классических
+`<script src>` — та же архитектура, что у Mahjong Luck/Upay/Golden
+Dragon: `src/config.js`, `src/lms-config.js`, `src/scenario-config.js`,
+`src/altyn-scenario-controller.js`, `src/lms-adapter.js`, `src/i18n.js`
+экспортируют (`export const ...`) вместо записи в `window.*` и
+подключаются через `import` в файлах, которым они реально нужны, а не
+отдельным тегом в `index.html`. `src/khan-effects.js`, `src/win-effects.js`
+и `src/counter-sync.js` остаются самостоятельными `<script type="module">`
+(они ни от кого не импортируются — только слушают события) в том же
+порядке, что и раньше. Babylon.js/Havok остаются классическими
+`<script>` с CDN — исполняются раньше любого `type="module"` скрипта
+независимо от порядка тегов, так что `BABYLON`/`HK` остаются валидными
+глобалами для модулей. Контракт LMS и вся игровая логика не менялись —
+это чисто структурный рефакторинг, смёрженный отдельной веткой, не в
+`modern-3d`.
 
 ---
 
@@ -129,7 +148,7 @@ Content-Security-Policy: frame-ancestors https://x2.kg https://www.x2.kg;
 
 ---
 
-# 6. Production-настройки `lms-config.js`
+# 6. Production-настройки `src/lms-config.js`
 
 Перед релизом изменить:
 
@@ -170,7 +189,7 @@ window.X2_GAME_CONFIG = {
 
 ### Критично
 
-В текущей реализации `game.js` передаёт в `PayTicket` `LMS_CFG.gameId`. Поэтому **реальный идентификатор игры обязательно должен быть прописан в `lms-config.js`**.
+В текущей реализации `main.js` передаёт в `PayTicket` `LMS_CFG.gameId`. Поэтому **реальный идентификатор игры обязательно должен быть прописан в `src/lms-config.js`**.
 
 Не полагаться только на `gameId`, присланный в `X2_LMS_INIT`, пока код специально не изменён под runtime gameId.
 
@@ -713,7 +732,7 @@ Raw технические ошибки — только мониторинг.
 
 ```text
 styles.css?v=...
-src/game.js?v=...
+src/main.js?v=...
 ...
 ```
 

@@ -1,9 +1,13 @@
 /* ALTYN KHAN Modern 3D v0.4.2: immediate, clearly tiered ordinary-win effects. */
+import { X2AltynScenarioConfig, X2ChukoScenarioConfig } from './scenario-config.js';
+import { CHUKO3D_CONFIG } from './config.js';
+import { X2LMS } from './lms-adapter.js';
+
 (() => {
   'use strict';
 
-  const S = window.X2AltynScenarioConfig || window.X2ChukoScenarioConfig;
-  const C = window.CHUKO3D_CONFIG || {};
+  const S = X2AltynScenarioConfig || X2ChukoScenarioConfig;
+  const C = CHUKO3D_CONFIG || {};
   const levels = {
     0.5: { cls:'x05', rings:1, flashScale:1.05, ringScale:1.85, popScale:1.04, glow:.48 },
     1:   { cls:'x1',  rings:1, flashScale:1.18, ringScale:2.05, popScale:1.08, glow:.60 },
@@ -160,7 +164,7 @@
   }
 
   function hookTicketCreation() {
-    const lms = window.X2LMS;
+    const lms = X2LMS;
     if (!lms || lms.__altynNormalWinHooked) return;
     ['createTicket', 'createDemoTicket'].forEach(name => {
       const original = lms[name];

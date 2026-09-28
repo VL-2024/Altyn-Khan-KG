@@ -1,8 +1,11 @@
-(function (global) {
+import { X2_GAME_CONFIG } from './lms-config.js';
+import { X2ChukoScenarioConfig } from './scenario-config.js';
+
+export const X2LMS = (function (global) {
   'use strict';
 
-  const cfg = global.X2_GAME_CONFIG || {};
-  const scenarioCfg = global.X2ChukoScenarioConfig;
+  const cfg = X2_GAME_CONFIG || {};
+  const scenarioCfg = X2ChukoScenarioConfig;
   if (!scenarioCfg) throw new Error('X2ChukoScenarioConfig must be loaded before lms-adapter.js');
 
   const params = new URLSearchParams(global.location.search);
@@ -322,10 +325,11 @@
     };
   }
 
-  global.X2LMS = {getGameSettings,getBalance,createTicket,createDemoTicket,emit,getSession:()=>session,isMock:MOCK};
   setTimeout(()=>emit('X2_GAME_READY',{
     gameId:params.get('gameId') || cfg.gameId || 'CHUKO',
     needsInit:!MOCK && cfg.initMode==='postMessage',
     needsSession:!MOCK && cfg.sessionMode==='postMessage'
   }),0);
+
+  return {getGameSettings,getBalance,createTicket,createDemoTicket,emit,getSession:()=>session,isMock:MOCK};
 })(window);

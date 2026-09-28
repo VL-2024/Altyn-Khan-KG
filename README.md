@@ -42,16 +42,22 @@ v0.5.3 — синхронизация LMS-интеграции с Mahjong Luck/U
 
 ## Основные файлы
 
+Ветка `claude/es-modules-conversion`: все файлы `src/*.js` — ES-модули
+(`import`/`export`), та же архитектура, что у Mahjong Luck/Upay/Golden
+Dragon (см. `INTEGRATION_INSTRUCTION.md` §2 «ES-модули»); `index.html`
+грузит `src/main.js` одним `<script type="module">`. Контракт LMS и
+игровая логика не менялись — чисто структурный рефакторинг.
+
 | Файл / папка | Назначение |
 |---|---|
 | `index.html` | оболочка игры, UI, порядок подключения JS |
-| `styles.css` | адаптивный интерфейс |
-| `src/game.js` | игровой цикл, 3D, сценарии, UI, автоигра |
+| `src/styles.css` | адаптивный интерфейс |
+| `src/main.js` | игровой цикл, 3D, сценарии, UI, автоигра |
 | `src/config.js` | физика, размеры, визуальные параметры |
 | `src/scenario-config.js` | справочник сценариев |
 | `src/i18n.js` | RU / EN / KG / ZH |
-| `lms-config.js` | runtime/LMS-конфигурация |
-| `lms-adapter.js` | интерфейс между игрой и LMS |
+| `src/lms-config.js` | runtime/LMS-конфигурация |
+| `src/lms-adapter.js` | интерфейс между игрой и LMS |
 | `assets/models/` | GLB-модели чүкө / ХАН / САКА |
 | `assets/music/` | музыка |
 | `assets/sounds/` | игровые эффекты |
@@ -181,11 +187,11 @@ X2-интеграция):
 > независимая от `sessionMode`: `apiRequest()` никогда не выставлял
 > заголовок `Authorization: Bearer <token>` — отправлялся только
 > кастомный `X-Session-ID`. Теперь оба. Текущее состояние кода
-> (`lms-config.js` → `sessionMode`) — `'postMessage'`.
+> (`src/lms-config.js` → `sessionMode`) — `'postMessage'`.
 
 - **Авторизация — через cookie (`sessionMode: 'cookie'`), не токен.**
   Решение всей команды (2026-09) — было принято ещё во время работы над
-  Mahjong Luck, но в этой игре `lms-config.js` до сих пор был на
+  Mahjong Luck, но в этой игре `src/lms-config.js` до сих пор был на
   `sessionMode: 'postMessage'`. `credentials: 'include'` в
   `apiRequest()` уже был на месте (эта игра в этом плане была впереди
   сестринских — просто конфиг не переключили). **Условие:** домен игры
@@ -195,9 +201,9 @@ X2-интеграция):
   Mahjong Luck/Upay/ЧҮКӨ-ОРДО — было пропущено при этом заходе
   синхронизации): вместо HTTP-ошибки LMS отвечает как обычно (HTTP 200),
   но с `ticketId: 0` (число или строка `"0"`) — подробности и пример в
-  `LMS_API.md` §6a. Adapter (`normalizeTicket()` в `lms-adapter.js`
+  `LMS_API.md` §6a. Adapter (`normalizeTicket()` в `src/lms-adapter.js`
   бросает `DENOMINATION_UNAVAILABLE`, обрабатывается в
-  `requestNewGame()`/`removeDenomination()` в `src/game.js`) откатывает
+  `requestNewGame()`/`removeDenomination()` в `src/main.js`) откатывает
   оптимистичное списание, показывает `showStatus('ticketsUnavailable',
   {denom, currency})` и убирает номинал из `#denom-select` до следующей
   инициализации игры. QA-хук: `?mock=true&mode=real&mockOutOfStock=<amount>`.
@@ -208,8 +214,8 @@ X2-интеграция):
   как `BAD_SCENARIO_RESPONSE`, если бы реальный бэкенд когда-нибудь
   прислал именно такой ответ.
 - **Keep-alive для LMS-сессии, наконец подключён.** `X2LMS.getBalance()`
-  уже существовал в `lms-adapter.js`, но **нигде не вызывался** — теперь
-  `startBalancePolling()` в `src/game.js` дёргает его раз в ~5 минут
+  уже существовал в `src/lms-adapter.js`, но **нигде не вызывался** — теперь
+  `startBalancePolling()` в `src/main.js` дёргает его раз в ~5 минут
   (`LMS_CFG.balancePollIntervalMs`), только пока вкладка видима и
   розыгрыш не идёт (`gameState.phase === 'idle' || 'settled'`). Заодно
   исправлен сам `getBalance()`: раньше он бил в отдельный REST-путь
@@ -227,10 +233,10 @@ X2-интеграция):
   `idIG` никак не получает. См. `LMS_API.md` §4.
 - **Авторские права** (невидимо игроку) — `<meta name="copyright">` +
   комментарий в `<head>` `index.html`, и по одной строке в начале
-  `src/game.js`, `lms-config.js`, `styles.css`.
+  `src/main.js`, `src/lms-config.js`, `src/styles.css`.
 - **Полноэкранный прелоадер (v0.5.7)** — как в Mahjong Luck: инлайновое
   лого X2 LOTO + название игры + полоса прогресса, только по-настоящему
-  привязанная к этапам `boot()` в `src/game.js` (`setPreloaderProgress()`):
+  привязанная к этапам `boot()` в `src/main.js` (`setPreloaderProgress()`):
   движок/сцена → физика Havok → окружение → 3 GLB-модели (прогресс растёт
   по мере готовности каждой, не одним скачком) → настройка сцены →
   подключение к LMS. Прячется через класс `app-ready` на `<html>` только
@@ -267,7 +273,7 @@ X2-интеграция):
 Кнопка **⚙ НАСТРОЙКА** (левый верхний угол, рядом с `#perfPanel`) открывает
 панель со слайдерами для живой настройки без пересборки:
 
-- все 27 уже существовавших ключей `TUNE_DEFAULTS` из `src/game.js`
+- все 27 уже существовавших ключей `TUNE_DEFAULTS` из `src/main.js`
   (положение/размер ковра, фон, раскладка фишек, камера, точка броска САКА,
   масштаб/позиция/поворот каждой 3D-модели) — раньше были закодированы, но
   ни разу не имели HTML (`#tuneBtn`/`#tunePanel` не существовали в
@@ -276,7 +282,7 @@ X2-интеграция):
   `uiWalletScale/X/Y`/`uiWalletFontScale`, `uiHintFontScale`,
   `uiScoreScale`/`uiScoreFontScale`, `uiBottomFontScale`,
   `uiActionScale`/`uiActionFontScale`) — управляют новыми CSS custom
-  properties (`--ui-*`) в `styles.css`, которые масштабируют/сдвигают
+  properties (`--ui-*`) в `src/styles.css`, которые масштабируют/сдвигают
   логотип, заголовок (включая позицию X/Y), плашку кошелька (включая
   позицию X/Y), текст подсказки, плашку счёта, нижнюю панель и плашку
   действия независимо от 3D-сцены.
@@ -308,7 +314,7 @@ CDN (`cdn.jsdelivr.net`, `cdn.babylonjs.com`), которые заблокиро
 ## Перед production обязательно
 
 - `mock: false`;
-- реальный `gameId` в `lms-config.js`;
+- реальный `gameId` в `src/lms-config.js`;
 - реальный URL `PayTicket` (`cfg.endpoints.newGame`);
 - ~~домен деплоя игры должен совпадать с доменом сайта LMS~~ — было
   верно под `sessionMode: 'cookie'`; при текущем `sessionMode:
