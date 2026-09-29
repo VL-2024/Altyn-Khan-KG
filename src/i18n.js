@@ -56,6 +56,7 @@ const TABLE = {
   startError:       { RU:'Не удалось начать игру',      EN:'Failed to start game',         KG:'Оюн башталган жок',            ZH:'游戏启动失败' },
   ticketsUnavailable: { RU:'Билеты {denom} {currency} временно недоступны', EN:'Tickets for {denom} {currency} are temporarily unavailable', KG:'{denom} {currency} үчүн билеттер убактылуу жеткиликсиз', ZH:'{denom} {currency}的门票暂时不可用' },
   balanceError:     { RU:'Ошибка загрузки баланса',      EN:'Failed to load balance',       KG:'Баланс жүктөлгөн жок',         ZH:'余额加载失败' },
+  depositSoon:      { RU:'Пополнение баланса скоро будет доступно', EN:'Balance top-up coming soon', KG:'Балансты толуктоо жакында жеткиликтүү болот', ZH:'充值功能即将上线' },
 
   helpTitle:        { RU:'Как играть',                 EN:'How to Play',                  KG:'Кантип ойноо керек',           ZH:'游戏玩法' },
   helpPull:         { RU:'Потяни САКА вниз и отпусти — или нажми «Бросок».',

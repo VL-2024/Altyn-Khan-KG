@@ -3297,10 +3297,15 @@ import { CHUKO_I18N } from './i18n.js';
     ui.autoMenu?.addEventListener('click', e => e.stopPropagation());
     document.addEventListener('click', () => closeAutoMenu());
 
-    ui.deposit?.addEventListener('click', () => LMS?.emit?.('X2_GAME_DEPOSIT_REQUEST', {
-      gameId:LMS_CFG.gameId || 'CHUKO', mode:gameState.mode, currency:gameState.currency,
-      denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
-    }));
+    ui.deposit?.addEventListener('click', () => {
+      LMS?.emit?.('X2_GAME_DEPOSIT_REQUEST', {
+        gameId:LMS_CFG.gameId || 'CHUKO', mode:gameState.mode, currency:gameState.currency,
+        denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
+      });
+      // Standalone/mock: no LMS parent to open a top-up form, so tell the
+      // player directly - same fallback as Mahjong Luck/Upay/Golden Dragon/Ordo.
+      if (window.parent === window) showStatus('depositSoon');
+    });
 
     ui.denomSelect?.addEventListener('change', () => {
       if (!['idle', 'settled'].includes(gameState.phase) || gameState.busy) return;
