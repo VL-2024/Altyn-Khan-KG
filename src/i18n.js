@@ -51,12 +51,13 @@ const TABLE = {
 
   real:             { RU:'REAL',                       EN:'REAL',                         KG:'REAL',                         ZH:'REAL' },
   demo:             { RU:'DEMO',                       EN:'DEMO',                         KG:'DEMO',                         ZH:'DEMO' },
-  insufficient:     { RU:'Недостаточно средств',        EN:'Insufficient funds',           KG:'Каражат жетишсиз',             ZH:'余额不足' },
-  sessionEnded:     { RU:'Сессия завершена',            EN:'Session ended',                KG:'Сессия аяктады',               ZH:'会话已结束' },
-  startError:       { RU:'Не удалось начать игру',      EN:'Failed to start game',         KG:'Оюн башталган жок',            ZH:'游戏启动失败' },
+  insufficient:     { RU:'Недостаточно средств на балансе', EN:'Insufficient balance',      KG:'Балансыңызда каражат жетишсиз', ZH:'余额不足' },
+  sessionEnded:     { RU:'Сессия истекла, обновите страницу', EN:'Session expired, please reload', KG:'Сессия аяктады, баракты жаңыртыңыз', ZH:'会话已过期，请刷新页面' },
+  startError:       { RU:'Не удалось начать игру, попробуйте ещё раз', EN:'Could not start the game, please try again', KG:'Оюнду баштоо мүмкүн болбоду, кайра аракет кылыңыз', ZH:'无法开始游戏，请重试' },
   ticketsUnavailable: { RU:'Билеты {denom} {currency} временно недоступны', EN:'Tickets for {denom} {currency} are temporarily unavailable', KG:'{denom} {currency} үчүн билеттер убактылуу жеткиликсиз', ZH:'{denom} {currency}的门票暂时不可用' },
   balanceError:     { RU:'Ошибка загрузки баланса',      EN:'Failed to load balance',       KG:'Баланс жүктөлгөн жок',         ZH:'余额加载失败' },
   depositSoon:      { RU:'Пополнение баланса скоро будет доступно', EN:'Balance top-up coming soon', KG:'Балансты толуктоо жакында жеткиликтүү болот', ZH:'充值功能即将上线' },
+  realModeNudge:    { RU:'Хотите играть на реальные деньги? Попробуйте режим «Реальная»!', EN:'Feeling lucky? Try REAL mode!', KG:'Чыныгы акчага ойногуңуз келеби? «Реальная» режимин колдонуп көрүңүз!', ZH:'想玩真钱吗？试试「真钱」模式吧！' },
 
   helpTitle:        { RU:'Как играть',                 EN:'How to Play',                  KG:'Кантип ойноо керек',           ZH:'游戏玩法' },
   helpPull:         { RU:'Потяни САКА вниз и отпусти — или нажми «Бросок».',

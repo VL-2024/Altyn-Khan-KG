@@ -1950,23 +1950,25 @@ import { CHUKO_I18N } from './i18n.js';
     });
   }
 
-  // Periodic "try REAL money" nudge: pulses the REAL button every 1-2
-  // completed rounds while playing in demo mode, so the option stays
-  // noticeable without turning into a constant distraction. The threshold
-  // is re-rolled (1 or 2) after every pulse for a less mechanical feel.
+  // Periodic "try REAL money" nudge: pulses the REAL button and shows a
+  // message every 5-7 completed rounds while playing in demo mode - same
+  // frequency and wording as Mahjong Luck/Ordo/Upay/Golden Dragon. The
+  // threshold is re-rolled (5-7) after every pulse for a less mechanical feel.
   let demoNudgeCounter = 0;
-  let demoNudgeThreshold = 1 + Math.round(Math.random());
+  let demoNudgeThreshold = 5 + Math.floor(Math.random() * 3);
   function maybeNudgeDemoBadge() {
     if (gameState.mode !== 'demo') { demoNudgeCounter = 0; return; }
     demoNudgeCounter += 1;
     if (demoNudgeCounter < demoNudgeThreshold) return;
     demoNudgeCounter = 0;
-    demoNudgeThreshold = 1 + Math.round(Math.random());
+    demoNudgeThreshold = 5 + Math.floor(Math.random() * 3);
     const btn = ui.modeSwitch?.querySelector('button[data-mode="real"]');
-    if (!btn) return;
-    btn.classList.remove('real-nudge');
-    void btn.offsetWidth; // restart the animation even if it's still mid-way
-    btn.classList.add('real-nudge');
+    if (btn) {
+      btn.classList.remove('real-nudge');
+      void btn.offsetWidth; // restart the animation even if it's still mid-way
+      btn.classList.add('real-nudge');
+    }
+    setHint('realModeNudge');
   }
 
   function renderScore() {
@@ -3308,13 +3310,29 @@ import { CHUKO_I18N } from './i18n.js';
     document.addEventListener('click', () => closeAutoMenu());
 
     ui.deposit?.addEventListener('click', () => {
+      // Same guard as Mahjong Luck's depositBtn handler - does nothing
+      // mid-round instead of interrupting an in-progress throw.
+      if (!['idle','settled'].includes(gameState.phase)) return;
       LMS?.emit?.('X2_GAME_DEPOSIT_REQUEST', {
         gameId:LMS_CFG.gameId || 'CHUKO', mode:gameState.mode, currency:gameState.currency,
         denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
       });
       // Standalone/mock: no LMS parent to open a top-up form, so tell the
-      // player directly - same fallback as Mahjong Luck/Upay/Golden Dragon/Ordo.
-      if (window.parent === window) showStatus('depositSoon');
+      // player directly, then auto-revert to the idle prompt after 2.2s
+      // (same timing/guard as Mahjong Luck) - same fallback as Mahjong
+      // Luck/Upay/Golden Dragon/Ordo.
+      if (window.parent === window) {
+        showStatus('depositSoon');
+        setTimeout(() => {
+          if (!['idle','settled'].includes(gameState.phase)) return;
+          showStatus('');
+          if (gameState.ticketReady && gameState.ticket) {
+            setHint('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` });
+          } else {
+            setHint('hintChooseDenom');
+          }
+        }, 2200);
+      }
     });
 
     ui.denomSelect?.addEventListener('change', () => {
