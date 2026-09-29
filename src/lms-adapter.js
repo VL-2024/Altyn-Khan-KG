@@ -63,7 +63,14 @@ export const X2LMS = (function (global) {
       demoBalance: Number(params.get('demoBalance') || cfg.demoBalance || 10000),
       // Contract §9: ?balance= seeds the REAL-mode starting balance for
       // GitHub/standalone testing, standing in for X2_LMS_INIT's `balance`.
-      balance: Number(params.get('balance') ?? cfg.balance ?? 0)
+      // Left undefined (not coalesced to 0) when not supplied - same as
+      // Mahjong Luck/Upay/Golden Dragon/Ordo - so the REAL balance stays
+      // genuinely unknown (shown as "—", ticket purchase blocked) instead
+      // of looking like a real, spendable 0.
+      balance: (() => {
+        const raw = params.get('balance') ?? cfg.balance;
+        return raw != null && Number.isFinite(Number(raw)) ? Number(raw) : undefined;
+      })()
     };
   }
 

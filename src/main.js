@@ -3122,8 +3122,9 @@ import { CHUKO_I18N } from './i18n.js';
         // only ever provided via X2_LMS_INIT (at startup) or in each
         // PayTicket response (see initializeGameIntegration() and
         // showGameResult()). Just display what we already know instead of
-        // calling an endpoint the LMS doesn't define.
-        gameState.balance = Number(gameState.realBalance ?? 0);
+        // calling an endpoint the LMS doesn't define. Stays null (shown as
+        // "—") rather than coalescing to 0 when genuinely unknown.
+        gameState.balance = gameState.realBalance;
       }
       gameState.phase = 'idle';
       renderDenominationButtons({centerActive:true});
@@ -3140,6 +3141,15 @@ import { CHUKO_I18N } from './i18n.js';
 
   async function requestNewGame() {
     if (!['idle','settled'].includes(gameState.phase) || gameState.busy) return;
+    // Proactive guard - blocks before ever calling LMS, same as Mahjong
+    // Luck/Ordo/Upay/Golden Dragon. A still-unknown (null) REAL balance
+    // blocks too: never let a player bet against a balance the game hasn't
+    // actually confirmed yet.
+    if (gameState.mode === 'real' && (gameState.balance == null || Number(gameState.balance) < Number(gameState.denomination))) {
+      showStatus('insufficient');
+      if (autoPlay.active) { clearAutoTimers(); finishAutoPlay(); }
+      return;
+    }
     if (autoPlay.active && Number.isFinite(autoPlay.fixedStake)) {
       gameState.denomination = Number(autoPlay.fixedStake);
     }
@@ -3404,8 +3414,11 @@ import { CHUKO_I18N } from './i18n.js';
     gameState.demoBalance = Number(settings.demoBalance ?? LMS_CFG.demoBalance ?? 10000);
     // Contract: the REAL balance is provided exactly once at startup via
     // X2_LMS_INIT's `balance` field (or the ?balance= test param) - the
-    // game must not fetch it from anywhere else.
-    gameState.realBalance = Number(settings.balance ?? 0);
+    // game must not fetch it from anywhere else. Stays null (shown as "—"
+    // by formatMoney(), ticket purchase blocked below) until genuinely
+    // supplied - same as Mahjong Luck/Upay/Golden Dragon/Ordo - instead of
+    // looking like a real, spendable 0.
+    gameState.realBalance = settings.balance != null && Number.isFinite(Number(settings.balance)) ? Number(settings.balance) : null;
     gameState.phase = 'idle';
     applyTranslations();
     await refreshBalance();
