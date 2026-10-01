@@ -41,7 +41,7 @@ export const X2_GAME_CONFIG = {
     effectFileVolume: 0.42
   },
 
-  localTicketHistoryLimit: 5,
+  localTicketHistoryLimit: 10,
 
   // Standalone QA only. Production LMS must set mock=false.
   mock: true,
