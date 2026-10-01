@@ -1601,7 +1601,7 @@ import { CHUKO_I18N } from './i18n.js';
 
   function refreshHintLanguage() {
     if (!ui.hint) return;
-    if (statusActive && lastStatusKey) ui.hint.textContent = trf(lastStatusKey, lastStatusVars);
+    if (statusActive && lastStatusKey) renderHintStatus(lastStatusKey, lastStatusVars);
     else if (lastHintKey) ui.hint.textContent = trf(lastHintKey, lastHintVars);
   }
 
@@ -2213,15 +2213,62 @@ import { CHUKO_I18N } from './i18n.js';
     clearCelebration();
   }
 
+  // 'insufficient' renders as text + a clickable "пополнить баланс" link
+  // (wired to requestDeposit()) instead of plain trf(key,vars) - shared by
+  // showStatus() and refreshHintLanguage() so a language switch mid-status
+  // rebuilds the link the same way.
+  function renderHintStatus(key, vars) {
+    if (key === 'insufficient') {
+      ui.hint.textContent = '';
+      ui.hint.append(document.createTextNode(trf(key, vars) + ' — '));
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'message-link';
+      btn.textContent = tr('topUpBalance');
+      btn.onclick = requestDeposit;
+      ui.hint.append(btn);
+    } else {
+      ui.hint.textContent = trf(key, vars);
+    }
+  }
+
   let statusClearTimer = null;
   function showStatus(key, vars) {
     if (!ui.hint) return;
     window.clearTimeout(statusClearTimer);
     if (!key) { statusActive = false; ui.hint.classList.remove('hint-status'); return; }
     lastStatusKey = key; lastStatusVars = vars || null; statusActive = true;
-    ui.hint.textContent = trf(key, vars);
+    renderHintStatus(key, vars);
     ui.hint.classList.add('hint-status');
     statusClearTimer = window.setTimeout(() => { statusActive = false; ui.hint.classList.remove('hint-status'); }, 4000);
+  }
+
+  // Shared by the + button and the "пополнить баланс" link inside the
+  // INSUFFICIENT_FUNDS status message.
+  function requestDeposit() {
+    // Same guard as Mahjong Luck's depositBtn handler - does nothing
+    // mid-round instead of interrupting an in-progress throw.
+    if (!['idle','settled'].includes(gameState.phase)) return;
+    LMS?.emit?.('X2_GAME_DEPOSIT_REQUEST', {
+      gameId:LMS_CFG.gameId || 'CHUKO', mode:gameState.mode, currency:gameState.currency,
+      denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
+    });
+    // Standalone/mock: no LMS parent to open a top-up form, so tell the
+    // player directly, then auto-revert to the idle prompt after 2.2s
+    // (same timing/guard as Mahjong Luck) - same fallback as Mahjong
+    // Luck/Upay/Golden Dragon/Ordo.
+    if (window.parent === window) {
+      showStatus('depositSoon');
+      setTimeout(() => {
+        if (!['idle','settled'].includes(gameState.phase)) return;
+        showStatus('');
+        if (gameState.ticketReady && gameState.ticket) {
+          setHint('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` });
+        } else {
+          setHint('hintChooseDenom');
+        }
+      }, 2200);
+    }
   }
 
   function worldPointForWhiteMetric(angle, targetMetric, y=0.11) {
@@ -3309,31 +3356,7 @@ import { CHUKO_I18N } from './i18n.js';
     ui.autoMenu?.addEventListener('click', e => e.stopPropagation());
     document.addEventListener('click', () => closeAutoMenu());
 
-    ui.deposit?.addEventListener('click', () => {
-      // Same guard as Mahjong Luck's depositBtn handler - does nothing
-      // mid-round instead of interrupting an in-progress throw.
-      if (!['idle','settled'].includes(gameState.phase)) return;
-      LMS?.emit?.('X2_GAME_DEPOSIT_REQUEST', {
-        gameId:LMS_CFG.gameId || 'CHUKO', mode:gameState.mode, currency:gameState.currency,
-        denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
-      });
-      // Standalone/mock: no LMS parent to open a top-up form, so tell the
-      // player directly, then auto-revert to the idle prompt after 2.2s
-      // (same timing/guard as Mahjong Luck) - same fallback as Mahjong
-      // Luck/Upay/Golden Dragon/Ordo.
-      if (window.parent === window) {
-        showStatus('depositSoon');
-        setTimeout(() => {
-          if (!['idle','settled'].includes(gameState.phase)) return;
-          showStatus('');
-          if (gameState.ticketReady && gameState.ticket) {
-            setHint('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` });
-          } else {
-            setHint('hintChooseDenom');
-          }
-        }, 2200);
-      }
-    });
+    ui.deposit?.addEventListener('click', requestDeposit);
 
     ui.denomSelect?.addEventListener('change', () => {
       if (!['idle', 'settled'].includes(gameState.phase) || gameState.busy) return;

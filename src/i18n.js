@@ -51,7 +51,8 @@ const TABLE = {
 
   real:             { RU:'REAL',                       EN:'REAL',                         KG:'REAL',                         ZH:'REAL' },
   demo:             { RU:'DEMO',                       EN:'DEMO',                         KG:'DEMO',                         ZH:'DEMO' },
-  insufficient:     { RU:'Недостаточно средств на балансе', EN:'Insufficient balance',      KG:'Балансыңызда каражат жетишсиз', ZH:'余额不足' },
+  insufficient:     { RU:'Недостаточно средств',           EN:'Insufficient funds',        KG:'Каражат жетишсиз',             ZH:'余额不足' },
+  topUpBalance:     { RU:'пополнить баланс',                EN:'top up balance',            KG:'балансты толуктоо',             ZH:'充值' },
   sessionEnded:     { RU:'Сессия истекла, обновите страницу', EN:'Session expired, please reload', KG:'Сессия аяктады, баракты жаңыртыңыз', ZH:'会话已过期，请刷新页面' },
   startError:       { RU:'Не удалось начать игру, попробуйте ещё раз', EN:'Could not start the game, please try again', KG:'Оюнду баштоо мүмкүн болбоду, кайра аракет кылыңыз', ZH:'无法开始游戏，请重试' },
   ticketsUnavailable: { RU:'Билеты {denom} {currency} временно недоступны', EN:'Tickets for {denom} {currency} are temporarily unavailable', KG:'{denom} {currency} үчүн билеттер убактылуу жеткиликсиз', ZH:'{denom} {currency}的门票暂时不可用' },
