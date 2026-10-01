@@ -14,7 +14,9 @@ export const X2LMS = (function (global) {
   // parameter ("Выключает локальную эмуляцию и включает LMS"), not just a
   // build-time flag - previously only lms-config.js's static `mock: true`
   // was ever consulted, so this URL param silently did nothing.
-  const MOCK = params.has('mock') ? params.get('mock') !== 'false' : !!cfg.mock;
+  // A trusted X2_LMS_INIT (verified-origin) can flip this back to false at
+  // runtime - see getGameSettings() below for why and when.
+  let MOCK = params.has('mock') ? params.get('mock') !== 'false' : !!cfg.mock;
 
   let session = params.get(cfg.sessionQueryParam || 'session') || null;
   let sessionResolve = null;
@@ -116,19 +118,35 @@ export const X2LMS = (function (global) {
   }
 
   async function getGameSettings() {
-    if (MOCK || cfg.initMode === 'config' || global.parent === global) return querySettings();
-    if (runtimeInit) return {...querySettings(), ...runtimeInit};
+    if (cfg.initMode === 'config' || global.parent === global) return querySettings();
+
+    // SECURITY: ?mock=true (or an unset ?mock, with cfg.mock:true) only
+    // short-circuits here when no origin could possibly be trusted yet
+    // (allowedParentOrigins empty). Once real origins are configured, a
+    // trusted X2_LMS_INIT always gets a real chance to arrive first - see
+    // below - so a crafted ?mock=true on an otherwise-real embed can't
+    // silently fake balance/PayTicket under REAL-mode chrome.
+    const canTrustParent = Array.isArray(cfg.allowedParentOrigins) && cfg.allowedParentOrigins.length > 0;
+    if (MOCK && !canTrustParent) return querySettings();
+
+    if (runtimeInit) { MOCK = false; return {...querySettings(), ...runtimeInit}; }
     emit('X2_GAME_READY', {
       gameId:params.get('gameId') || cfg.gameId || 'CHUKO',
       needsInit:true,
       needsSession:cfg.sessionMode === 'postMessage'
     });
     const timeout = Number(cfg.requestTimeoutMs || 10000);
-    const supplied = await Promise.race([
-      initPromise,
-      new Promise((_,reject)=>setTimeout(()=>reject(makeError('INIT_TIMEOUT','LMS did not send X2_LMS_INIT')),timeout))
-    ]);
-    return {...querySettings(), ...supplied};
+    try {
+      const supplied = await Promise.race([
+        initPromise,
+        new Promise((_,reject)=>setTimeout(()=>reject(makeError('INIT_TIMEOUT','LMS did not send X2_LMS_INIT')),timeout))
+      ]);
+      MOCK = false; // a trusted INIT arrived - real data wins over ?mock=true from here on
+      return {...querySettings(), ...supplied};
+    } catch (err) {
+      if (MOCK) return querySettings(); // no trusted parent answered in time - fall back to mock for QA
+      throw err;
+    }
   }
 
   async function waitForSession() {
@@ -338,5 +356,5 @@ export const X2LMS = (function (global) {
     needsSession:!MOCK && cfg.sessionMode==='postMessage'
   }),0);
 
-  return {getGameSettings,getBalance,createTicket,createDemoTicket,emit,getSession:()=>session,isMock:MOCK};
+  return {getGameSettings,getBalance,createTicket,createDemoTicket,emit,getSession:()=>session,get isMock(){ return MOCK; }};
 })(window);
